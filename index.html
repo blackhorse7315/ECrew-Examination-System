@@ -56,33 +56,41 @@
         /* --- NEW CODE: CSS FOR PDF PRINTING --- */
         #print-area { display: none; }
         @media print {
+            @page { size: A4; margin: 15mm; }
+            html, body { width: 100%; margin: 0 !important; padding: 0 !important; background: white !important; }
             body > *:not(#print-area) { display: none !important; }
             #print-area {
                 display: block !important;
                 width: 100%;
+                margin: 0;
+                padding: 0;
                 background-color: white;
                 color: black;
+                position: static;
             }
-            @page { size: A4; margin: 20mm; }
             .print-page { 
                 font-family: 'Calibri', sans-serif; 
-                font-size: 12pt;
+                font-size: 11pt;
                 line-height: 1.5;
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
             }
+            .print-page * { box-sizing: border-box; }
             .print-header { text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 20px; }
-            .print-header h1 { font-size: 20pt; margin: 0; font-weight: bold; }
-            .print-header h2 { font-size: 16pt; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; }
-            .print-header h3 { font-size: 12pt; margin: 5px 0 0 0; font-weight: normal; }
-            .print-section-title { font-weight: bold; font-size: 12pt; border-bottom: 1px solid black; margin-top: 20px; margin-bottom: 10px; padding-bottom: 3px; text-transform: uppercase; }
-            .print-table { width: 100%; font-size: 11pt; border-collapse: collapse; }
-            .print-table td { padding: 4px 0; vertical-align: top; }
-            .print-table td:first-child { width: 160px; }
-            .print-result-box { margin: 15px 0; font-size: 12pt; text-align: center; }
+            .print-header h1 { font-size: 18pt; margin: 0; font-weight: bold; }
+            .print-header h2 { font-size: 14pt; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; }
+            .print-header h3 { font-size: 11pt; margin: 5px 0 0 0; font-weight: normal; }
+            .print-section-title { font-weight: bold; font-size: 11pt; border-bottom: 1px solid black; margin-top: 20px; margin-bottom: 10px; padding-bottom: 3px; text-transform: uppercase; }
+            .print-table { width: 100%; font-size: 11pt; border-collapse: collapse; table-layout: fixed; }
+            .print-table td { padding: 4px 0; vertical-align: top; word-wrap: break-word; }
+            .print-table td:first-child { width: 150px; }
+            .print-result-box { margin: 15px 0; font-size: 11pt; text-align: center; }
             .print-score { font-size: 24pt; font-weight: bold; }
             .print-summary-item { margin-bottom: 15px; page-break-inside: avoid; }
             .print-summary-item.correct { color: green !important; }
             .print-summary-item.wrong { color: red !important; }
-            .print-signatures { margin-top: 60px; width: 100%; display: flex; justify-content: space-between; text-align: center; }
+            .print-signatures { margin-top: 50px; width: 100%; display: flex; justify-content: space-between; text-align: center; page-break-inside: avoid; }
             .print-sig-box { width: 200px; }
             .print-sig-line { border-top: 1px solid black; margin-top: 60px; padding-top: 5px; }
         }
