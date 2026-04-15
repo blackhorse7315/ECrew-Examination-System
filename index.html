@@ -259,7 +259,7 @@
     <!-- NEW CODE: GOOGLE CLOUD SYNC LOGIC & STATE OVERRIDE -->
     <script>
         // MASUKAN WEB APP URL ANDA DI SINI
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx3C4HV9ICNATNe1CZFlwO1I0LaeS3N8utnDJGvqR1C9Y6d-mEK33mDJIZEn02a4YlIEg/exec'; 
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzkAjP9Ajh5DX8Qgt5HUI0bJCQKNzmuXm5_fL1xxfx0ZYo-XjMoo5hsV3BaaPBj5Lr7/exec'; 
 
         // --- CENTRAL STATE ---
         const state = {
@@ -1095,6 +1095,19 @@
 
             const now = new Date();
             const eDateParts = a.examDate.split('-');
+            
+            let durMins = 60;
+            if (a.duration) {
+                let h = 0, m = 0;
+                const hm = a.duration.match(/(\d+)h/);
+                const mm = a.duration.match(/(\d+)m/);
+                if (hm) h = parseInt(hm[1]);
+                if (mm) m = parseInt(mm[1]);
+                if (h > 0 || m > 0) durMins = (h * 60) + m;
+            }
+
+            let initialTimeLeft = durMins * 60;
+
             if (eDateParts.length === 3) {
                 const eDate = new Date(eDateParts[0], eDateParts[1] - 1, eDateParts[2]);
                 eDate.setHours(0,0,0,0);
@@ -1109,42 +1122,46 @@
                     if (tParts.length === 2) {
                         const currMins = now.getHours() * 60 + now.getMinutes();
                         const examMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
+                        const endMins = examMins + durMins; // Batas waktu maksimal ujian selesai
+                        
                         if (currMins < examMins) {
                             return alert("The exam cannot be started because the assigned time has not been reached.");
+                        } else if (currMins >= endMins) {
+                            return alert("Waktu ujian sudah habis.");
+                        } else {
+                            // Hitung sisa waktu mundur jika kandidat memulai ujian terlambat
+                            initialTimeLeft = (endMins - currMins) * 60;
                         }
                     }
                 }
             }
 
-            let durMins = 60;
-            if (a.duration) {
-                let h = 0, m = 0;
-                const hm = a.duration.match(/(\d+)h/);
-                const mm = a.duration.match(/(\d+)m/);
-                if (hm) h = parseInt(hm[1]);
-                if (mm) m = parseInt(mm[1]);
-                if (h > 0 || m > 0) durMins = (h * 60) + m;
+            let shuffledQuestions = [...set.questions];
+            for (let i = shuffledQuestions.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
             }
 
             window.activeExam = {
                 assignment: a,
                 set: set,
-                questions: set.questions,
+                questions: shuffledQuestions,
                 currentIndex: 0,
                 answers: {},
-                timeLeft: durMins * 60,
+                timeLeft: initialTimeLeft,
                 timerId: null
             };
 
             a.status = 'IN PROGRESS';
-            syncToCloud(); // NEW CODE: Sync status in progress
+            syncToCloud(); 
             
             window.activeExam.timerId = setInterval(() => {
                 window.activeExam.timeLeft--;
                 if (window.activeExam.timeLeft <= 0) {
                     clearInterval(window.activeExam.timerId);
-                    alert("Time is up! Submitting your exam automatically.");
-                    submitExam();
+                    window.activeExam.timeLeft = 0; // Kunci sisa waktu ke 0
+                    alert("Waktu ujian sudah habis! Anda tidak dapat menjawab lagi. Silahkan tekan tombol submit.");
+                    renderActiveExamUI(); // Render ulang untuk mengunci pilihan jawaban
                 } else {
                     updateTimerUI();
                 }
@@ -1167,6 +1184,7 @@
             const q = ex.questions[ex.currentIndex];
             const isLast = ex.currentIndex === ex.questions.length - 1;
             const isFirst = ex.currentIndex === 0;
+            const timeUp = ex.timeLeft <= 0; // Cek apakah waktu sudah habis
 
             let html = `
                 <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden page-fade">
@@ -1177,7 +1195,7 @@
                         </div>
                         <div class="bg-blue-800/50 px-4 py-2 rounded-xl border border-blue-500 text-center">
                             <span class="text-[10px] uppercase font-bold text-blue-200 block mb-1">Time Remaining</span>
-                            <span id="exam-timer-display" class="font-mono font-bold text-2xl">--:--</span>
+                            <span id="exam-timer-display" class="font-mono font-bold text-2xl ${timeUp ? 'text-red-400' : ''}">--:--</span>
                         </div>
                     </div>
                     
@@ -1190,8 +1208,10 @@
                                 const optText = q.options[opt];
                                 if (!optText) return '';
                                 const isSelected = ex.answers[q.id] === opt;
+                                // Logika untuk mengunci pilihan jika waktu habis
+                                const cursorStyle = timeUp ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:border-blue-300';
                                 return `
-                                    <div onclick="selectExamOption('${opt}')" class="p-5 border-2 rounded-2xl cursor-pointer transition-all ${isSelected ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100 hover:border-blue-300 bg-white'}">
+                                    <div ${timeUp ? '' : `onclick="selectExamOption('${opt}')"`} class="p-5 border-2 rounded-2xl transition-all ${isSelected ? 'border-blue-600 bg-blue-50 shadow-md' : `border-slate-100 bg-white ${cursorStyle}`}">
                                         <div class="flex items-center gap-4">
                                             <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}">${opt}</div>
                                             <span class="font-medium text-slate-700 text-base">${optText}</span>
@@ -1204,8 +1224,8 @@
 
                     <div class="bg-slate-50 p-6 border-t border-slate-100 flex justify-between items-center">
                         <button onclick="navigateExam(-1)" class="px-8 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 uppercase tracking-widest transition-colors ${isFirst ? 'invisible' : ''}">Previous</button>
-                        ${isLast ? `
-                            <button onclick="submitExam()" class="px-10 py-3 bg-green-600 text-white rounded-xl text-sm font-black shadow-lg shadow-green-100 uppercase tracking-widest hover:bg-green-700 transition-colors">Submit Your Answer</button>
+                        ${(isLast || timeUp) ? `
+                            <button onclick="submitExam(${timeUp ? 'true' : 'false'})" class="px-10 py-3 ${timeUp ? 'bg-red-600 shadow-red-100 hover:bg-red-700 animate-pulse' : 'bg-green-600 shadow-green-100 hover:bg-green-700'} text-white rounded-xl text-sm font-black shadow-lg uppercase tracking-widest transition-colors">Submit Your Answer</button>
                         ` : `
                             <button onclick="navigateExam(1)" class="px-10 py-3 bg-blue-600 text-white rounded-xl text-sm font-black shadow-lg shadow-blue-100 uppercase tracking-widest hover:bg-blue-700 transition-colors">Next</button>
                         `}
@@ -1218,6 +1238,7 @@
         }
 
         function selectExamOption(opt) {
+            if (window.activeExam.timeLeft <= 0) return; // Mencegah pemilihan opsi jawaban jika waktu habis
             window.activeExam.answers[window.activeExam.questions[window.activeExam.currentIndex].id] = opt;
             renderActiveExamUI(); 
             
@@ -1231,8 +1252,9 @@
             renderActiveExamUI();
         }
 
-        function submitExam() {
-            if (!confirm("Are you sure you want to submit your exam?")) return;
+        function submitExam(force = false) {
+            // Bypass confirm pop-up jika pengguna disuruh secara paksa karena kehabisan waktu
+            if (force !== true && !confirm("Are you sure you want to submit your exam?")) return;
             
             const ex = window.activeExam;
             clearInterval(ex.timerId);
@@ -1252,7 +1274,7 @@
             ex.assignment.score = score;
             ex.assignment.grade = grade;
 
-            syncToCloud(); // NEW CODE: Sync submitted exam result
+            syncToCloud(); 
             renderExamResultUserView(ex, score, grade, correctCount);
         }
 
