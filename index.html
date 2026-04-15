@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>E CREW - Examination System Transwisata</title>
+    <title>E CREW - Examination System</title>
     
     <!-- NEW CODE: App Icons & Shortcut Support -->
     <link rel="icon" type="image/png" href="https://lh3.googleusercontent.com/d/1-Ix2jV27kfEwv3lycXA_4FGqpKS6TqtD">
@@ -101,7 +101,7 @@
     <!-- Loading Screen -->
     <div id="app-loader">
         <div class="spinner mb-4"></div>
-        <div class="text-white font-bold tracking-widest text-sm uppercase" id="loader-text">E CREW Examination System</div>
+        <div class="text-white font-bold tracking-widest text-sm uppercase" id="loader-text">E CREW Examination System Transwisata</div>
         <div class="text-blue-400 text-xs mt-2 opacity-70" id="loader-subtext">Connecting to Cloud...</div>
     </div>
 
@@ -119,7 +119,7 @@
                         <img src="https://lh3.googleusercontent.com/d/1-Ix2jV27kfEwv3lycXA_4FGqpKS6TqtD" alt="Logo" class="w-full h-full object-contain drop-shadow-lg" />
                     </div>
                     <h1 class="text-2xl font-bold text-slate-900 leading-tight">E CREW</h1>
-                    <h2 class="text-md font-medium text-blue-600">Examination System Transwisata</h2>
+                    <h2 class="text-md font-medium text-blue-600">Examination System</h2>
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 mt-1 font-bold">Transwisata Prima Aviation</p>
                 </div>
 
@@ -238,7 +238,7 @@
     <!-- NEW CODE: GOOGLE CLOUD SYNC LOGIC & STATE OVERRIDE -->
     <script>
         // MASUKAN WEB APP URL ANDA DI SINI
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz7f7glp2Sgafq5grqytbe3Bsbh-nijYPJPsz__u3vvIrMjQXBjgwgONp014upDEMGOUw/exec'; 
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzkAjP9Ajh5DX8Qgt5HUI0bJCQKNzmuXm5_fL1xxfx0ZYo-XjMoo5hsV3BaaPBj5Lr7/exec'; 
 
         // --- CENTRAL STATE ---
         const state = {
@@ -928,6 +928,9 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- NEW CODE: Element untuk menampung nomor halaman -->
+                <div id="print-footer"></div>
             `;
 
             document.getElementById('print-area').innerHTML = html;
