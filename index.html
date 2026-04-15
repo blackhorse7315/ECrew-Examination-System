@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>E CREW - Examination System</title>
+    <title>E CREW - Examination System Transwisata</title>
     
     <!-- NEW CODE: App Icons & Shortcut Support -->
     <link rel="icon" type="image/png" href="https://lh3.googleusercontent.com/d/1-Ix2jV27kfEwv3lycXA_4FGqpKS6TqtD">
@@ -93,6 +93,22 @@
             .print-signatures { margin-top: 50px; width: 100%; display: flex; justify-content: space-between; text-align: center; page-break-inside: avoid; }
             .print-sig-box { width: 200px; }
             .print-sig-line { border-top: 1px solid black; margin-top: 60px; padding-top: 5px; }
+
+            /* Page Number Logic */
+            #print-footer {
+                display: block;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font-family: 'Calibri', sans-serif;
+                font-size: 10pt;
+                color: black;
+            }
+            #print-footer::after {
+                content: "Page " counter(page);
+            }
         }
     </style>
 </head>
@@ -101,7 +117,7 @@
     <!-- Loading Screen -->
     <div id="app-loader">
         <div class="spinner mb-4"></div>
-        <div class="text-white font-bold tracking-widest text-sm uppercase" id="loader-text">E CREW Examination System Transwisata</div>
+        <div class="text-white font-bold tracking-widest text-sm uppercase" id="loader-text">E CREW Examination System</div>
         <div class="text-blue-400 text-xs mt-2 opacity-70" id="loader-subtext">Connecting to Cloud...</div>
     </div>
 
@@ -238,7 +254,7 @@
     <!-- NEW CODE: GOOGLE CLOUD SYNC LOGIC & STATE OVERRIDE -->
     <script>
         // MASUKAN WEB APP URL ANDA DI SINI
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzkAjP9Ajh5DX8Qgt5HUI0bJCQKNzmuXm5_fL1xxfx0ZYo-XjMoo5hsV3BaaPBj5Lr7/exec'; 
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz7f7glp2Sgafq5grqytbe3Bsbh-nijYPJPsz__u3vvIrMjQXBjgwgONp014upDEMGOUw/exec'; 
 
         // --- CENTRAL STATE ---
         const state = {
@@ -1128,7 +1144,7 @@
                     
                     <div class="p-8 md:p-12">
                         <span class="text-[10px] font-black bg-blue-50 text-blue-600 px-3 py-1 rounded uppercase tracking-widest">${q.section}</span>
-                        <h4 class="text-xl font-bold text-slate-800 mt-6 mb-8 leading-relaxed">${q.id}. ${q.text}</h4>
+                        <h4 class="text-xl font-bold text-slate-800 mt-6 mb-8 leading-relaxed">${ex.currentIndex + 1}. ${q.text}</h4>
                         
                         <div class="space-y-4">
                             ${['A', 'B', 'C', 'D'].map(opt => {
@@ -1208,19 +1224,19 @@
             else if (score >= 75) sCl = "text-green-500";
 
             let answersHtml = '';
-            ex.questions.forEach(q => {
+            ex.questions.forEach((q, index) => {
                 const userAns = ex.answers[q.id];
                 const isCorrect = userAns === q.answer;
                 if(isCorrect) {
                     answersHtml += `
                         <div class="mb-3 p-5 bg-green-50 border border-green-100 rounded-xl">
-                            <p class="font-bold text-sm text-slate-800 mb-2">Q${q.id}: ${q.text}</p>
+                            <p class="font-bold text-sm text-slate-800 mb-2">Q${index + 1}: ${q.text}</p>
                             <p class="text-xs font-bold text-green-600">${q.answer}. ${q.options[q.answer]} ✓</p>
                         </div>`;
                 } else {
                     answersHtml += `
                         <div class="mb-3 p-5 bg-red-50 border border-red-100 rounded-xl">
-                            <p class="font-bold text-sm text-slate-800 mb-2">Q${q.id}: ${q.text}</p>
+                            <p class="font-bold text-sm text-slate-800 mb-2">Q${index + 1}: ${q.text}</p>
                             <p class="text-xs font-bold text-red-500 mb-2">${userAns ? userAns + '. ' + q.options[userAns] : 'No Answer'} ✗</p>
                             <p class="text-[10px] font-bold text-green-600">Correct: ${q.answer}. ${q.options[q.answer]}</p>
                         </div>`;
