@@ -117,7 +117,7 @@
     <!-- Loading Screen -->
     <div id="app-loader">
         <div class="spinner mb-4"></div>
-        <div class="text-white font-bold tracking-widest text-sm uppercase" id="loader-text">E CREW Examination System</div>
+        <div class="text-white font-bold tracking-widest text-sm uppercase" id="loader-text">E CREW Examination System Transwisata</div>
         <div class="text-blue-400 text-xs mt-2 opacity-70" id="loader-subtext">Connecting to Cloud...</div>
     </div>
 
@@ -135,7 +135,7 @@
                         <img src="https://lh3.googleusercontent.com/d/1-Ix2jV27kfEwv3lycXA_4FGqpKS6TqtD" alt="Logo" class="w-full h-full object-contain drop-shadow-lg" />
                     </div>
                     <h1 class="text-2xl font-bold text-slate-900 leading-tight">E CREW</h1>
-                    <h2 class="text-md font-medium text-blue-600">Examination System Transwisata</h2>
+                    <h2 class="text-md font-medium text-blue-600">Examination System</h2>
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 mt-1 font-bold">Transwisata Prima Aviation</p>
                 </div>
 
@@ -568,19 +568,35 @@
         }
 
         function removeQuestion(setId, qId) {
-            const set = state.questionSets.find(s => s.id === setId);
-            set.questions = set.questions.filter(q => q.id !== qId);
-            set.questions.forEach((q, i) => q.id = i + 1);
-            syncToCloud(); // NEW CODE: Sync delete question
-            viewSetDetails(setId);
+            promptVerify(() => {
+                if (confirm('Delete this question?')) {
+                    const set = state.questionSets.find(s => s.id === setId);
+                    set.questions = set.questions.filter(q => q.id !== qId);
+                    set.questions.forEach((q, i) => q.id = i + 1);
+                    syncToCloud(); // NEW CODE: Sync delete question
+                    viewSetDetails(setId);
+                }
+            });
         }
 
         function deleteAllQuestions(setId) {
-            if (confirm('Purge all?')) { state.questionSets.find(s => s.id === setId).questions = []; syncToCloud(); viewSetDetails(setId); }
+            promptVerify(() => {
+                if (confirm('Purge all questions in this set?')) { 
+                    state.questionSets.find(s => s.id === setId).questions = []; 
+                    syncToCloud(); 
+                    viewSetDetails(setId); 
+                }
+            });
         }
 
         function deleteSet(setId) {
-            if (confirm('Delete entire set?')) { state.questionSets = state.questionSets.filter(s => s.id !== setId); syncToCloud(); renderTabContent(state.activeTab); }
+            promptVerify(() => {
+                if (confirm('Delete entire set?')) { 
+                    state.questionSets = state.questionSets.filter(s => s.id !== setId); 
+                    syncToCloud(); 
+                    renderTabContent(state.activeTab); 
+                }
+            });
         }
 
         // --- USER DATA ---
