@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>E CREW - Examination System Transwisata</title>
+    
+    <!-- NEW CODE: App Icons & Shortcut Support -->
+    <link rel="icon" type="image/png" href="https://lh3.googleusercontent.com/d/1-Ix2jV27kfEwv3lycXA_4FGqpKS6TqtD">
+    <link rel="apple-touch-icon" href="https://lh3.googleusercontent.com/d/1-Ix2jV27kfEwv3lycXA_4FGqpKS6TqtD">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- END NEW CODE -->
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #1e293b; --accent: #3b82f6; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
+        
+        #app-loader {
+            position: fixed; inset: 0; background: #1e293b; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 9999; transition: opacity 0.5s ease;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        .page-fade { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .glass-morphism { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); }
+        .gradient-bg { background: radial-gradient(circle at top right, #1e293b, #0f172a); }
+        .tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; font-weight: 700; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        input, select, textarea, button { font-size: 16px !important; }
+
+        .custom-checkbox:checked + label {
+            background-color: #eff6ff;
+            border-color: #3b82f6;
+            color: #1e40af;
+        }
+
+        /* Gold text for perfect score */
+        .text-gold { color: #FFD700; text-shadow: 0 0 12px rgba(255, 215, 0, 0.4); }
+        .bg-dark-card { background-color: #131926; }
+        
+        /* Modal improvement */
+        .modal-body-scroll { max-height: 70vh; overflow-y: auto; padding-right: 4px; }
+
+        /* --- NEW CODE: CSS FOR PDF PRINTING --- */
+        #print-area { display: none; }
+        @media print {
+            body > *:not(#print-area) { display: none !important; }
+            #print-area {
+                display: block !important;
+                width: 100%;
+                background-color: white;
+                color: black;
+            }
+            @page { size: A4; margin: 20mm; }
+            .print-page { 
+                font-family: 'Calibri', sans-serif; 
+                font-size: 12pt;
+                line-height: 1.5;
+            }
+            .print-header { text-align: center; border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 20px; }
+            .print-header h1 { font-size: 20pt; margin: 0; font-weight: bold; }
+            .print-header h2 { font-size: 16pt; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; }
+            .print-header h3 { font-size: 12pt; margin: 5px 0 0 0; font-weight: normal; }
+            .print-section-title { font-weight: bold; font-size: 12pt; border-bottom: 1px solid black; margin-top: 20px; margin-bottom: 10px; padding-bottom: 3px; text-transform: uppercase; }
+            .print-table { width: 100%; font-size: 11pt; border-collapse: collapse; }
+            .print-table td { padding: 4px 0; vertical-align: top; }
+            .print-table td:first-child { width: 160px; }
+            .print-result-box { margin: 15px 0; font-size: 12pt; text-align: center; }
+            .print-score { font-size: 24pt; font-weight: bold; }
+            .print-summary-item { margin-bottom: 15px; page-break-inside: avoid; }
+            .print-summary-item.correct { color: green !important; }
+            .print-summary-item.wrong { color: red !important; }
+            .print-signatures { margin-top: 60px; width: 100%; display: flex; justify-content: space-between; text-align: center; }
+            .print-sig-box { width: 200px; }
+            .print-sig-line { border-top: 1px solid black; margin-top: 60px; padding-top: 5px; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Loading Screen -->
+    <div id="app-loader">
+        <div class="spinner mb-4"></div>
+        <div class="text-white font-bold tracking-widest text-sm uppercase" id="loader-text">E CREW Examination System Transwisata</div>
+        <div class="text-blue-400 text-xs mt-2 opacity-70" id="loader-subtext">Connecting to Cloud...</div>
+    </div>
+
+    <!-- --- NEW CODE: HIDDEN CONTAINER FOR PRINTING --- -->
+    <!-- PERBAIKAN: Menghapus class="hidden" agar tidak bentrok dengan display saat print -->
+    <div id="print-area"></div>
+
+    <div id="app" class="opacity-0 transition-opacity duration-500">
+        <!-- Auth Section -->
+        <!-- PERBAIKAN: Menambahkan class 'relative' agar footer bisa diposisikan di bawah -->
+        <div id="auth-section" class="min-h-screen flex items-center justify-center p-4 gradient-bg relative">
+            <div class="max-w-md w-full glass-morphism p-8 rounded-3xl shadow-2xl page-fade">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                        <img src="https://lh3.googleusercontent.com/d/1-Ix2jV27kfEwv3lycXA_4FGqpKS6TqtD" alt="Logo" class="w-full h-full object-contain drop-shadow-lg" />
+                    </div>
+                    <h1 class="text-2xl font-bold text-slate-900 leading-tight">E CREW</h1>
+                    <h2 class="text-md font-medium text-blue-600">Examination System Transwisata</h2>
+                    <p class="text-[10px] uppercase tracking-widest text-slate-400 mt-1 font-bold">Transwisata Prima Aviation</p>
+                </div>
+
+                <div class="flex bg-slate-100 p-1 rounded-xl mb-6">
+                    <button onclick="toggleAuth('login')" id="btn-login-tab" class="flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-blue-600 shadow-sm transition-all">Login</button>
+                    <button onclick="toggleAuth('register')" id="btn-reg-tab" class="flex-1 py-2 text-sm font-semibold rounded-lg text-slate-500 transition-all">Register</button>
+                </div>
+
+                <form id="login-form" class="space-y-4">
+                    <input type="text" id="login-username" required class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Username / Email">
+                    <input type="password" id="login-password" required class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Password">
+                    <button type="submit" class="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-[0.98] transition-all tracking-widest uppercase">Sign In</button>
+                </form>
+
+                <form id="register-form" class="space-y-4 hidden max-h-[60vh] overflow-y-auto pr-1 no-scrollbar">
+                    <input type="text" id="reg-name" placeholder="Full Name" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
+                    <input type="email" id="reg-username" placeholder="Email (Username)" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
+                    <input type="password" id="reg-password" placeholder="Password" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
+                    <div class="grid grid-cols-2 gap-3">
+                        <select id="reg-rank" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
+                            <option>CCP</option><option>FI</option><option>GI</option><option>Capt</option><option>FO</option>
+                        </select>
+                        <select id="reg-rating" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
+                            <option>Gulfstream IV-SP (G-IV)</option><option>Beechcraft King Air 350 (BE-300)</option><option>Casa 212 (CA-212)</option><option>Agusta 109S Grand (AW-109)</option><option>Bell 412 EP (B412)</option>
+                        </select>
+                    </div>
+                    <input type="text" id="reg-license" placeholder="License (e.g. ATPL/ 20-0007)" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
+                    <button type="submit" class="w-full py-4 bg-green-600 text-white rounded-xl font-bold uppercase tracking-widest">Create Account</button>
+                </form>
+            </div>
+
+            <!-- NEW CODE: Footer Skyops Solution -->
+            <div class="absolute bottom-6 left-0 w-full text-center pointer-events-none">
+                <p class="text-[10px] text-slate-400 font-bold tracking-widest uppercase opacity-70">
+                    Created By <span class="text-blue-400">Skyops Solution</span>
+                </p>
+            </div>
+            <!-- END NEW CODE -->
+        </div>
+
+        <!-- Main Dashboard Section -->
+        <div id="main-section" class="hidden min-h-screen flex flex-col bg-[#f1f5f9]">
+            <header class="bg-white shadow-sm sticky top-0 z-50">
+                <div class="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 flex items-center justify-center">
+                            <img src="https://lh3.googleusercontent.com/d/1-Ix2jV27kfEwv3lycXA_4FGqpKS6TqtD" alt="Logo" class="w-full h-full object-contain drop-shadow-md" />
+                        </div>
+                        <!-- PERBAIKAN: Menghilangkan "hidden sm:block" agar judul selalu tampil di tampilan mobile -->
+                        <div class="block text-left">
+                            <h1 class="text-sm font-bold text-slate-800 leading-none uppercase tracking-tighter">E CREW</h1>
+                            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Examination System Transwisata</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right hidden xs:block">
+                            <p id="user-display-name" class="text-xs font-bold text-slate-900">User</p>
+                            <p id="user-display-role" class="text-[9px] text-blue-500 font-bold uppercase tracking-widest">Role</p>
+                        </div>
+                        <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="admin-tabs" class="bg-white border-t border-slate-50 hidden overflow-x-auto no-scrollbar shadow-inner">
+                    <div class="max-w-7xl mx-auto flex">
+                        <button onclick="switchTab('dashboard')" class="tab-btn tab-active px-5 py-4 text-[11px] font-bold tracking-wider whitespace-nowrap" data-tab="dashboard">🏠 Dashboard</button>
+                        <button onclick="switchTab('question-bank')" class="tab-btn px-5 py-4 text-[11px] font-bold tracking-wider text-slate-400 whitespace-nowrap" data-tab="question-bank">📋 Type Rating Bank</button>
+                        <button onclick="switchTab('mandatory-bank')" class="tab-btn px-5 py-4 text-[11px] font-bold tracking-wider text-slate-400 whitespace-nowrap" data-tab="mandatory-bank">📋 Mandatory Bank</button>
+                        <button onclick="switchTab('user-data')" class="tab-btn px-5 py-4 text-[11px] font-bold tracking-wider text-slate-400 whitespace-nowrap" data-tab="user-data">👩🏻‍✈️ User Data</button>
+                        <button onclick="switchTab('instructor-data')" class="tab-btn px-5 py-4 text-[11px] font-bold tracking-wider text-slate-400 whitespace-nowrap" data-tab="instructor-data">👩🏻‍✈️ Instructor Data</button>
+                        <button onclick="switchTab('form-no')" class="tab-btn px-5 py-4 text-[11px] font-bold tracking-wider text-slate-400 whitespace-nowrap" data-tab="form-no">📋 Form No</button>
+                        <button onclick="switchTab('assignment')" class="tab-btn px-5 py-4 text-[11px] font-bold tracking-wider text-slate-400 whitespace-nowrap" data-tab="assignment">📅 Assignment</button>
+                        <button onclick="switchTab('exam-history')" class="tab-btn px-5 py-4 text-[11px] font-bold tracking-wider text-slate-400 whitespace-nowrap" data-tab="exam-history">📝 Exam History</button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="flex-1 p-4 md:p-6 overflow-y-auto">
+                <div id="dynamic-content" class="max-w-7xl mx-auto">
+                    <!-- Dynamic Content Managed by JS -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal Manager -->
+    <div id="modal-container" class="fixed inset-0 z-[100] hidden bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div id="modal-content" class="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col page-fade">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 id="modal-title" class="text-lg font-bold text-slate-800 tracking-tight">Title</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-2 text-2xl leading-none">&times;</button>
+            </div>
+            <div id="modal-body" class="p-6 overflow-y-auto flex-1 bg-slate-50 modal-body-scroll no-scrollbar"></div>
+            <div id="modal-footer" class="p-4 border-t border-slate-100 flex justify-end gap-3 bg-white"></div>
+        </div>
+    </div>
+
+    <!-- Verification Modal -->
+    <div id="verify-modal" class="fixed inset-0 z-[110] hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 page-fade text-center">
+            <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            <h3 class="text-lg font-black text-slate-800 mb-2 uppercase tracking-widest">Security Verification</h3>
+            <p class="text-[10px] font-bold text-slate-500 mb-6 leading-relaxed">Silahkan hubungi admin atau masukan kode verifikasi untuk melanjutkan aksi ini.</p>
+            <input type="password" id="verify-code-input" class="w-full p-4 border border-slate-200 rounded-xl text-center font-black tracking-[0.5em] text-xl outline-none focus:border-blue-500 mb-6 text-blue-600" placeholder="••••">
+            <div class="flex gap-3">
+                <button onclick="closeVerifyModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
+                <button onclick="processVerify()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">Verify</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW CODE: GOOGLE CLOUD SYNC LOGIC & STATE OVERRIDE -->
+    <script>
+        // MASUKAN WEB APP URL ANDA DI SINI
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz7f7glp2Sgafq5grqytbe3Bsbh-nijYPJPsz__u3vvIrMjQXBjgwgONp014upDEMGOUw/exec'; 
+
+        // --- CENTRAL STATE ---
+        const state = {
+            currentUser: null,
+            isAdmin: false,
+            activeTab: 'dashboard',
+            admin: { u: 'admin', p: 'admin123' },
+            superAdmin: { code: '2805' },
+            formNo: null,
+            users: [],
+            instructors: [],
+            questionSets: [],
+            assignments: [],
+            lookups: {
+                ratings: ['Gulfstream IV-SP (G-IV)', 'Beechcraft King Air 350 (BE-300)', 'Casa 212 (CA-212)', 'Agusta 109S Grand (AW-109)', 'Bell 412 EP (B412)'],
+                ranks: ['CCP', 'FI', 'GI', 'Capt', 'FO'],
+                examTypes: ['Initial', 'Recurrent', 'Upgrade Training'],
+                models: ['A', 'B', 'C', 'D'],
+                mandatoryTypes: ['Crew Resources Management', 'Windshear', 'ALAR CFIT'],
+                mandatoryExamTypes: ['Initial', 'Recurrent']
+            }
+        };
+
+        // --- HELPER FORMATTERS ---
+        function formatDisplayDate(dStr) {
+            if (!dStr) return '-';
+            const parts = dStr.split('-');
+            if (parts.length === 3) {
+                const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                return `${parseInt(parts[2])} ${months[parseInt(parts[1])-1]} ${parts[0]}`;
+            }
+            return dStr;
+        }
+
+        // --- CLOUD SYNC FUNCTIONS (Optimistic UI) ---
+        async function loadDataFromCloud() {
+            if (!SCRIPT_URL || SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL_HERE') return; 
+            try {
+                const response = await fetch(SCRIPT_URL + '?action=load');
+                const data = await response.json();
+                if (data.status === 'success' && data.state) {
+                    // Menerima data asli dari database
+                    state.users = data.state.users || [];
+                    state.instructors = data.state.instructors || [];
+                    
+                    // Filter normalisasi untuk format Google Sheets ISO ke format bersih
+                    state.assignments = (data.state.assignments || []).map(a => {
+                        if (a.examDate && typeof a.examDate === 'string' && a.examDate.includes('T')) {
+                            const d = new Date(a.examDate);
+                            if (!isNaN(d.getTime())) a.examDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                        }
+                        if (a.examTime && typeof a.examTime === 'string' && a.examTime.includes('T')) {
+                            const d = new Date(a.examTime);
+                            if (!isNaN(d.getTime())) a.examTime = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                        }
+                        return a;
+                    });
+
+                    state.questionSets = data.state.questionSets || [];
+                    if (data.state.formNo !== undefined) state.formNo = data.state.formNo;
+                    if (data.state.admin && data.state.admin.u !== undefined) state.admin = data.state.admin;
+                    if (data.state.superAdmin && data.state.superAdmin.code) state.superAdmin.code = data.state.superAdmin.code;
+                }
+            } catch (error) {
+                console.error('Failed to load data:', error);
+            }
+        }
+
+        function syncToCloud() {
+            if (!SCRIPT_URL || SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL_HERE') return; 
+            const dataToSave = {
+                users: state.users, instructors: state.instructors,
+                questionSets: state.questionSets, assignments: state.assignments,
+                formNo: state.formNo, admin: state.admin, superAdmin: state.superAdmin
+            };
+            
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors', // Mencegah blokir keamanan browser saat menyimpan ke Google Script
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'save', state: dataToSave })
+            }).catch(e => console.error("Sync error:", e));
+        }
+
+        // --- INIT ---
+        window.addEventListener('load', async () => {
+            // NEW CODE: Fetch real DB data before showing login
+            await loadDataFromCloud();
+            document.getElementById('loader-subtext').innerText = "Starting System...";
+            
+            setTimeout(() => {
+                document.getElementById('app-loader').style.opacity = '0';
+                document.getElementById('app').style.opacity = '1';
+                setTimeout(() => document.getElementById('app-loader').style.display = 'none', 500);
+            }, 500);
+        });
+
+        // --- AUTH ---
+        function toggleAuth(type) {
+            const isLogin = type === 'login';
+            document.getElementById('login-form').classList.toggle('hidden', !isLogin);
+            document.getElementById('register-form').classList.toggle('hidden', isLogin);
+            document.getElementById('btn-login-tab').className = isLogin ? "flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-blue-600 shadow-sm transition-all" : "flex-1 py-2 text-sm font-semibold rounded-lg text-slate-500 transition-all";
+            document.getElementById('btn-reg-tab').className = !isLogin ? "flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-blue-600 shadow-sm transition-all" : "flex-1 py-2 text-sm font-semibold rounded-lg text-slate-500 transition-all";
+        }
+
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const u = document.getElementById('login-username').value;
+            const p = document.getElementById('login-password').value;
+            if (u === 'admin' && p === 'adminutama') {
+                initApp({ name: 'Super Admin', role: 'superadmin' });
+            } else if (state.admin.u && u === state.admin.u && p === state.admin.p) {
+                initApp({ name: 'System Admin', role: 'admin' });
+            } else {
+                const found = state.users.find(user => user.username === u && user.password === p);
+                if (found) initApp({ ...found, role: 'user' });
+                else alert('Invalid Credentials');
+            }
+        });
+
+        document.getElementById('register-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newUser = {
+                id: Date.now(),
+                name: document.getElementById('reg-name').value,
+                username: document.getElementById('reg-username').value,
+                password: document.getElementById('reg-password').value,
+                rank: document.getElementById('reg-rank').value,
+                rating: document.getElementById('reg-rating').value,
+                license: document.getElementById('reg-license').value
+            };
+            state.users.push(newUser);
+            syncToCloud(); // NEW CODE: Sync registration
+            alert('Registration Success! Please Login.');
+            toggleAuth('login');
+        });
+
+        function initApp(user) {
+            state.currentUser = user;
+            state.isAdmin = user.role === 'admin';
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('main-section').classList.remove('hidden');
+            document.getElementById('user-display-name').innerText = user.name;
+            document.getElementById('user-display-role').innerText = state.currentUser.role === 'superadmin' ? 'Super Admin' : (state.isAdmin ? 'Administrator' : 'Flight Crew');
+            
+            if (state.currentUser.role === 'superadmin') {
+                document.getElementById('admin-tabs').classList.add('hidden');
+                renderSuperAdmin();
+            } else if (state.isAdmin) {
+                document.getElementById('admin-tabs').classList.remove('hidden');
+                switchTab('dashboard');
+            } else {
+                document.getElementById('admin-tabs').classList.add('hidden');
+                renderUserPortal();
+            }
+        }
+
+        // --- UI NAVIGATION ---
+        function switchTab(tabId) {
+            state.activeTab = tabId;
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.toggle('tab-active', b.dataset.tab === tabId);
+                b.classList.toggle('text-slate-400', b.dataset.tab !== tabId);
+            });
+            renderTabContent(tabId);
+        }
+
+        function renderTabContent(tabId) {
+            const container = document.getElementById('dynamic-content');
+            container.innerHTML = '';
+            switch(tabId) {
+                case 'dashboard': renderDashboard(); break;
+                case 'question-bank': renderBank('Type Rating'); break;
+                case 'mandatory-bank': renderBank('Mandatory Training'); break;
+                case 'user-data': renderUserData(); break;
+                case 'instructor-data': renderInstructorData(); break;
+                case 'form-no': renderFormNo(); break;
+                case 'assignment': renderAssignment(); break;
+                case 'exam-history': renderExamHistory(); break;
+            }
+        }
+
+        function renderDashboard() {
+            document.getElementById('dynamic-content').innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100"><p class="text-[10px] font-bold text-slate-400 uppercase">Users</p><p class="text-2xl font-bold">${state.users.length}</p></div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100"><p class="text-[10px] font-bold text-slate-400 uppercase">Instructors</p><p class="text-2xl font-bold">${state.instructors.length}</p></div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100"><p class="text-[10px] font-bold text-slate-400 uppercase">Assignments</p><p class="text-2xl font-bold">${state.assignments.length}</p></div>
+                </div>
+                <div class="bg-white p-10 rounded-3xl shadow-sm border border-slate-100"><h2 class="text-xl font-bold">Admin Panel Active</h2><p class="text-slate-500 mt-2">Transwisata Prima Aviation Command Center.</p></div>
+            `;
+        }
+
+        // --- QUESTION BANK LOGIC (Type & Mandatory) ---
+        function renderBank(category) {
+            const sets = state.questionSets.filter(s => s.category === category);
+            let html = `
+                <div class="flex justify-between items-center mb-6">
+                    <div><h2 class="text-xl font-bold text-slate-800">${category} Bank</h2><p class="text-xs text-slate-500">Manage exam question datasets.</p></div>
+                    <button onclick="openImportModal('${category}')" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase shadow-lg shadow-blue-100">Import / Merge Set</button>
+                </div>
+                <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100"><table class="w-full text-left border-collapse"><thead class="bg-slate-50 border-b"><tr><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Title</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Exam</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Qs</th><th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase">Action</th></tr></thead><tbody class="divide-y divide-slate-50">`;
+            
+            if (sets.length === 0) html += `<tr><td colspan="4" class="px-6 py-12 text-center text-slate-400 italic">No data found.</td></tr>`;
+            else {
+                sets.forEach(s => {
+                    html += `<tr class="hover:bg-slate-50 group"><td class="px-6 py-4 font-bold text-slate-800 text-sm">${s.title}</td><td class="px-6 py-4 text-xs font-medium text-slate-500">${s.type}</td><td class="px-6 py-4 text-xs font-bold text-blue-600">${s.questions.length}</td><td class="px-6 py-4 text-right space-x-2"><button onclick="viewSetDetails(${s.id})" class="text-blue-500 font-black text-[10px] uppercase">View & Edit</button><button onclick="deleteSet(${s.id})" class="text-red-400 font-black text-[10px] uppercase opacity-0 group-hover:opacity-100">Delete</button></td></tr>`;
+                });
+            }
+            document.getElementById('dynamic-content').innerHTML = html + `</tbody></table></div>`;
+        }
+
+        function openImportModal(category) {
+            promptVerify(() => {
+                const isMand = category === 'Mandatory Training';
+                const modal = document.getElementById('modal-container');
+                document.getElementById('modal-title').innerText = `Import / Merge ${category} Set`;
+                document.getElementById('modal-body').innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div><label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">${isMand ? 'Mandatory Type' : 'Type Rating'}</label>
+                        ${isMand ? `<input id="imp-rating" list="mand-list" class="w-full p-3 border border-slate-200 rounded-xl text-sm"><datalist id="mand-list">${state.lookups.mandatoryTypes.map(t=>`<option value="${t}">`).join('')}</datalist>` : `<select id="imp-rating" class="w-full p-3 border border-slate-200 rounded-xl text-sm">${state.lookups.ratings.map(r=>`<option>${r}</option>`).join('')}</select>`}</div>
+                        <div><label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Exam Type</label><input id="imp-type" list="exam-list" class="w-full p-3 border border-slate-200 rounded-xl text-sm"><datalist id="exam-list">${(isMand?state.lookups.mandatoryExamTypes:state.lookups.examTypes).map(t=>`<option value="${t}">`).join('')}</datalist></div>
+                        <div><label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Model</label><input id="imp-model" list="model-list" class="w-full p-3 border border-slate-200 rounded-xl text-sm"><datalist id="model-list">${state.lookups.models.map(m=>`<option value="${m}">`).join('')}</datalist></div>
+                    </div>
+                    <textarea id="imp-raw" class="w-full h-80 p-4 border border-slate-200 rounded-2xl text-xs font-mono" placeholder="Format: SECTION NAME\\n\\n1. Question text?\\nA. Opt 1\\nB. Opt 2\\nCorrect answer : A"></textarea>
+                `;
+                document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="processImport('${category}')" class="px-6 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow-lg uppercase">Process & Save</button>`;
+                modal.classList.remove('hidden');
+            });
+        }
+
+        function processImport(category) {
+            const raw = document.getElementById('imp-raw').value;
+            const ratingVal = document.getElementById('imp-rating').value;
+            const typeVal = document.getElementById('imp-type').value;
+            const modelVal = document.getElementById('imp-model').value;
+            if (!raw || !ratingVal || !typeVal || !modelVal) return alert('Fill all fields');
+
+            const lines = raw.split('\n');
+            const newQs = [];
+            let currSect = "GENERAL", currQ = null;
+
+            lines.forEach(line => {
+                const tr = line.trim();
+                if (!tr) return;
+                if (tr === tr.toUpperCase() && !tr.match(/^\d+\./) && !tr.match(/^[A-D]\./) && !tr.match(/Correct answer/i)) { currSect = tr; return; }
+                const qM = tr.match(/^\d+\.\s*(.*)/);
+                if (qM) { if (currQ) newQs.push(currQ); currQ = { id: 0, section: currSect, text: qM[1], options: {A:'',B:'',C:'',D:''}, answer: '' }; return; }
+                const oM = tr.match(/^([A-D])\.\s*(.*)/);
+                if (oM && currQ) { currQ.options[oM[1]] = oM[2]; return; }
+                const aM = tr.match(/Correct answer\s*:\s*([A-D])/i);
+                if (aM && currQ) { currQ.answer = aM[1].toUpperCase(); return; }
+            });
+            if (currQ) newQs.push(currQ);
+
+            const existing = state.questionSets.find(s => s.category === category && (s.rating === ratingVal || s.mandatoryType === ratingVal) && s.type === typeVal && s.model === modelVal);
+            if (existing) {
+                const offset = existing.questions.length;
+                newQs.forEach((q, i) => { q.id = offset + i + 1; existing.questions.push(q); });
+                alert(`Merged ${newQs.length} Qs.`);
+            } else {
+                state.questionSets.push({ id: Date.now(), category, title: `${typeVal} ${category === 'Type Rating' ? 'Type Rating' : 'Mandatory'} ${ratingVal} - Model ${modelVal}`, rating: category==='Type Rating'?ratingVal:null, mandatoryType: category==='Mandatory Training'?ratingVal:null, type: typeVal, model: modelVal, questions: newQs.map((q, i) => ({ ...q, id: i + 1 })) });
+            }
+            syncToCloud(); // NEW CODE: Sync process import
+            closeModal();
+            renderTabContent(state.activeTab);
+        }
+
+        function viewSetDetails(setId) {
+            const set = state.questionSets.find(s => s.id === setId);
+            document.getElementById('modal-title').innerText = `Details: ${set.title}`;
+            let html = `<div class="flex justify-between items-center mb-6"><h4 class="font-bold text-slate-800">${set.questions.length} Questions</h4><button onclick="deleteAllQuestions(${set.id})" class="text-[10px] font-bold text-red-500 border border-red-200 px-3 py-1 rounded-lg uppercase">Purge All</button></div><div class="space-y-4">`;
+            set.questions.forEach(q => {
+                html += `<div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative group"><div class="flex justify-between items-start mb-2"><span class="text-[9px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded uppercase tracking-tighter">${q.section}</span><div class="flex gap-4"><button onclick="openEditQuestion(${set.id}, ${q.id})" class="text-[10px] font-bold text-blue-500 uppercase">Edit</button><button onclick="removeQuestion(${set.id}, ${q.id})" class="text-[10px] font-bold text-red-400 uppercase">Delete</button></div></div><p class="text-sm font-bold text-slate-800 mb-3">${q.id}. ${q.text}</p><div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]"><div class="p-2 rounded-lg ${q.answer==='A'?'bg-green-50 text-green-700 font-bold':'bg-slate-50 text-slate-500'}">A. ${q.options.A}</div><div class="p-2 rounded-lg ${q.answer==='B'?'bg-green-50 text-green-700 font-bold':'bg-slate-50 text-slate-500'}">B. ${q.options.B}</div><div class="p-2 rounded-lg ${q.answer==='C'?'bg-green-50 text-green-700 font-bold':'bg-slate-50 text-slate-500'}">C. ${q.options.C}</div><div class="p-2 rounded-lg ${q.answer==='D'?'bg-green-50 text-green-700 font-bold':'bg-slate-50 text-slate-500'}">D. ${q.options.D}</div></div></div>`;
+            });
+            document.getElementById('modal-body').innerHTML = html;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-8 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase">Close</button>`;
+            document.getElementById('modal-container').classList.remove('hidden');
+        }
+
+        function openEditQuestion(setId, qId) {
+            promptVerify(() => {
+                const set = state.questionSets.find(s => s.id === setId);
+                const q = set.questions.find(item => item.id === qId);
+                document.getElementById('modal-title').innerText = `Edit Question #${q.id}`;
+                document.getElementById('modal-body').innerHTML = `
+                    <div class="space-y-4">
+                        <input type="text" id="eq-sect" value="${q.section}" class="w-full p-3 border rounded-xl text-sm" placeholder="Section">
+                        <textarea id="eq-text" rows="3" class="w-full p-3 border rounded-xl text-sm">${q.text}</textarea>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="flex items-center gap-2 border rounded-xl px-3 bg-white"><span class="font-bold text-slate-500">A.</span><input type="text" id="eq-a" value="${q.options.A}" class="w-full py-3 bg-transparent outline-none text-xs" placeholder="Option A"></div>
+                            <div class="flex items-center gap-2 border rounded-xl px-3 bg-white"><span class="font-bold text-slate-500">B.</span><input type="text" id="eq-b" value="${q.options.B}" class="w-full py-3 bg-transparent outline-none text-xs" placeholder="Option B"></div>
+                            <div class="flex items-center gap-2 border rounded-xl px-3 bg-white"><span class="font-bold text-slate-500">C.</span><input type="text" id="eq-c" value="${q.options.C}" class="w-full py-3 bg-transparent outline-none text-xs" placeholder="Option C"></div>
+                            <div class="flex items-center gap-2 border rounded-xl px-3 bg-white"><span class="font-bold text-slate-500">D.</span><input type="text" id="eq-d" value="${q.options.D}" class="w-full py-3 bg-transparent outline-none text-xs" placeholder="Option D"></div>
+                        </div>
+                        <select id="eq-ans" class="w-full p-3 border rounded-xl text-sm font-bold"><option value="A" ${q.answer==='A'?'selected':''}>A</option><option value="B" ${q.answer==='B'?'selected':''}>B</option><option value="C" ${q.answer==='C'?'selected':''}>C</option><option value="D" ${q.answer==='D'?'selected':''}>D</option></select>
+                    </div>
+                `;
+                document.getElementById('modal-footer').innerHTML = `<button onclick="viewSetDetails(${setId})" class="px-4 py-2 text-xs font-bold text-slate-400">Back</button><button onclick="saveQuestionEdit(${setId}, ${qId})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-lg uppercase">Save Changes</button>`;
+            });
+        }
+
+        function saveQuestionEdit(setId, qId) {
+            const q = state.questionSets.find(s => s.id === setId).questions.find(item => item.id === qId);
+            q.section = document.getElementById('eq-sect').value; q.text = document.getElementById('eq-text').value;
+            q.options = { A: document.getElementById('eq-a').value, B: document.getElementById('eq-b').value, C: document.getElementById('eq-c').value, D: document.getElementById('eq-d').value };
+            q.answer = document.getElementById('eq-ans').value;
+            syncToCloud(); // NEW CODE: Sync edit question
+            viewSetDetails(setId);
+        }
+
+        function removeQuestion(setId, qId) {
+            const set = state.questionSets.find(s => s.id === setId);
+            set.questions = set.questions.filter(q => q.id !== qId);
+            set.questions.forEach((q, i) => q.id = i + 1);
+            syncToCloud(); // NEW CODE: Sync delete question
+            viewSetDetails(setId);
+        }
+
+        function deleteAllQuestions(setId) {
+            if (confirm('Purge all?')) { state.questionSets.find(s => s.id === setId).questions = []; syncToCloud(); viewSetDetails(setId); }
+        }
+
+        function deleteSet(setId) {
+            if (confirm('Delete entire set?')) { state.questionSets = state.questionSets.filter(s => s.id !== setId); syncToCloud(); renderTabContent(state.activeTab); }
+        }
+
+        // --- USER DATA ---
+        function renderUserData() {
+            let html = `<div class="mb-6"><h2 class="text-xl font-bold">User Database</h2></div><div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100"><table class="w-full text-left border-collapse"><thead class="bg-slate-50 border-b"><tr><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Name</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Email</th><th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th></tr></thead><tbody class="divide-y divide-slate-50">`;
+            state.users.forEach(u => {
+                html += `<tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="viewUserDetail(${u.id})"><td class="px-6 py-4 font-bold text-slate-800 text-sm">${u.name}</td><td class="px-6 py-4 text-xs text-slate-500">${u.username}</td><td class="px-6 py-4 text-right"><button class="text-blue-500 font-black text-[10px] uppercase">View Detail</button></td></tr>`;
+            });
+            document.getElementById('dynamic-content').innerHTML = html + `</tbody></table></div>`;
+        }
+
+        function viewUserDetail(uid) {
+            const u = state.users.find(x => x.id === uid);
+            document.getElementById('modal-title').innerText = `Profile: ${u.name}`;
+            document.getElementById('modal-body').innerHTML = `
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Email</p><p class="text-sm font-bold text-slate-800">${u.username}</p></div>
+                    <div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Rank</p><p class="text-sm font-bold text-blue-600">${u.rank}</p></div>
+                    <div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">License</p><p class="text-sm font-bold text-slate-800">${u.license}</p></div>
+                    <div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Password</p><p class="text-sm font-bold text-slate-800">${u.password}</p></div>
+                </div>
+            `;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="deleteUser(${u.id})" class="mr-auto px-4 py-2 text-xs font-bold text-red-500 uppercase">Delete User</button><button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Close</button><button onclick="openEditUser(${u.id})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase">Edit Data</button>`;
+            document.getElementById('modal-container').classList.remove('hidden');
+        }
+
+        function openEditUser(uid) {
+            const u = state.users.find(x => x.id === uid);
+            document.getElementById('modal-body').innerHTML = `
+                <div class="space-y-4">
+                    <input type="text" id="eu-name" value="${u.name}" class="w-full p-3 border rounded-xl text-sm" placeholder="Name">
+                    <input type="text" id="eu-pass" value="${u.password}" class="w-full p-3 border rounded-xl text-sm" placeholder="Password">
+                    <div class="grid grid-cols-2 gap-3">
+                        <select id="eu-rank" class="p-3 border rounded-xl text-sm">${state.lookups.ranks.map(r=>`<option value="${r}" ${u.rank===r?'selected':''}>${r}</option>`).join('')}</select>
+                        <select id="eu-rating" class="p-3 border rounded-xl text-sm">${state.lookups.ratings.map(r=>`<option value="${r}" ${u.rating===r?'selected':''}>${r}</option>`).join('')}</select>
+                    </div>
+                    <input type="text" id="eu-license" value="${u.license}" class="w-full p-3 border rounded-xl text-sm" placeholder="License">
+                </div>
+            `;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="viewUserDetail(${uid})" class="px-4 py-2 text-xs font-bold text-slate-400">Back</button><button onclick="saveUserEdit(${uid})" class="px-8 py-2.5 bg-green-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Save</button>`;
+        }
+
+        function saveUserEdit(uid) {
+            const u = state.users.find(x => x.id === uid);
+            u.name = document.getElementById('eu-name').value; u.password = document.getElementById('eu-pass').value;
+            u.rank = document.getElementById('eu-rank').value; u.rating = document.getElementById('eu-rating').value;
+            u.license = document.getElementById('eu-license').value;
+            syncToCloud(); // NEW CODE: Sync edit user
+            viewUserDetail(uid); renderUserData();
+        }
+
+        function deleteUser(uid) {
+            if (confirm('Delete?')) { state.users = state.users.filter(x => x.id !== uid); syncToCloud(); closeModal(); renderUserData(); }
+        }
+
+        // --- INSTRUCTOR DATA ---
+        function renderInstructorData() {
+            let html = `<div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-bold">Instructors</h2><p class="text-xs text-slate-500">Authorized check captains.</p></div><button onclick="openInstructorModal('add')" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase shadow-lg shadow-blue-100">Add Instructor</button></div><div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100"><table class="w-full text-left border-collapse"><thead class="bg-slate-50 border-b"><tr><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Name</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">LOA Number</th><th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th></tr></thead><tbody class="divide-y divide-slate-50">`;
+            state.instructors.forEach(i => {
+                html += `<tr class="hover:bg-slate-50 group"><td class="px-6 py-4 font-bold text-slate-800 text-sm">${i.name}</td><td class="px-6 py-4 text-xs font-medium text-slate-500">${i.loaNo}</td><td class="px-6 py-4 text-right space-x-3"><button onclick="openInstructorModal('edit', ${i.id})" class="text-blue-500 font-black text-[10px] uppercase">Edit</button><button onclick="deleteInstructor(${i.id})" class="text-red-400 font-black text-[10px] uppercase">Delete</button></td></tr>`;
+            });
+            document.getElementById('dynamic-content').innerHTML = html + `</tbody></table></div>`;
+        }
+
+        function openInstructorModal(mode, id) {
+            const i = mode === 'edit' ? state.instructors.find(x => x.id === id) : { name: '', loaNo: '' };
+            document.getElementById('modal-title').innerText = mode === 'edit' ? "Edit Instructor" : "Add Instructor";
+            document.getElementById('modal-body').innerHTML = `<div class="space-y-4"><input type="text" id="in-name" value="${i.name}" class="w-full p-4 border rounded-xl text-sm" placeholder="Full Name"><input type="text" id="in-loa" value="${i.loaNo}" class="w-full p-4 border rounded-xl text-sm" placeholder="LOA No."></div>`;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveInstructor(${mode==='edit'?id:'null'})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-lg uppercase">Save Data</button>`;
+            document.getElementById('modal-container').classList.remove('hidden');
+        }
+
+        function saveInstructor(id) {
+            const n = document.getElementById('in-name').value, l = document.getElementById('in-loa').value;
+            if (!n || !l) return;
+            if (id) { const i = state.instructors.find(x => x.id === id); i.name = n; i.loaNo = l; }
+            else state.instructors.push({ id: Date.now(), name: n, loaNo: l, rating: 'B412' });
+            syncToCloud(); // NEW CODE: Sync edit/add instructor
+            closeModal(); renderInstructorData();
+        }
+
+        function deleteInstructor(id) {
+            if (confirm('Delete?')) { state.instructors = state.instructors.filter(x => x.id !== id); syncToCloud(); renderInstructorData(); }
+        }
+
+        // --- FORM NO ---
+        function renderFormNo() {
+            const f = state.formNo;
+            document.getElementById('dynamic-content').innerHTML = `
+                <div class="mb-6"><h2 class="text-xl font-bold">Examination Form No.</h2></div>
+                <div class="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100 flex justify-between items-center">
+                    ${f ? `<div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Format</p><h3 class="text-3xl font-black text-slate-900 tracking-tight">${f.value}</h3><p class="text-[10px] text-slate-400 italic mt-2">Last Update: ${f.date}</p></div><div class="flex gap-4"><button onclick="openFormModal('edit')" class="px-6 py-2 bg-slate-50 text-blue-600 rounded-xl text-xs font-bold uppercase">Edit</button><button onclick="deleteForm()" class="px-6 py-2 bg-slate-50 text-red-500 rounded-xl text-xs font-bold uppercase">Delete</button></div>` : `<button onclick="openFormModal('add')" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-black text-xs uppercase shadow-lg">Set Form Number</button>`}
+                </div>
+            `;
+        }
+
+        function openFormModal() {
+            const modal = document.getElementById('modal-container');
+            document.getElementById('modal-title').innerText = "Set Official Form Number";
+            document.getElementById('modal-body').innerHTML = `<input type="text" id="fn-val" value="${state.formNo?state.formNo.value:''}" class="w-full p-4 border rounded-xl text-xl font-bold tracking-tight text-center" placeholder="F/TWA-OPS/061/00">`;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveForm()" class="px-10 py-3 bg-blue-600 text-white rounded-xl text-xs font-black shadow-lg uppercase">Save Format</button>`;
+            modal.classList.remove('hidden');
+        }
+
+        function saveForm() {
+            const v = document.getElementById('fn-val').value; if (!v) return;
+            state.formNo = { value: v, date: new Date().toLocaleString() }; syncToCloud(); closeModal(); renderFormNo();
+        }
+
+        function deleteForm() { if (confirm('Delete?')) { state.formNo = null; syncToCloud(); renderFormNo(); } }
+
+        // --- ASSIGNMENT ---
+        function renderAssignment() {
+            let html = `<div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-bold">Assignments</h2><p class="text-xs text-slate-500">Dispatch exams to pilots.</p></div><button onclick="openAssignModal()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase shadow-lg shadow-blue-100 tracking-widest">New Assignment</button></div><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">`;
+            
+            state.assignments.forEach(a => {
+                const isC = a.status === 'COMPLETED';
+                html += `<div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 relative group"><div class="flex justify-between items-start mb-4"><span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${isC?'bg-green-100 text-green-700':a.status==='IN PROGRESS'?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700'}">${a.status}</span><button onclick="deleteAssign(${a.id})" class="text-slate-300 hover:text-red-500">&times;</button></div><h4 class="text-lg font-black text-slate-900 leading-tight">${a.userName}</h4><p class="text-xs font-bold text-blue-600 mb-4 truncate">${a.examTitle}</p><div class="space-y-1 text-[11px] text-slate-500 pt-4 border-t border-slate-50"><p>📅 Exam: <b>${formatDisplayDate(a.examDate)}</b></p><p>⏰ Time: <b>${a.examTime || '-'}</b> &nbsp; ⏳ Duration: <b>${a.duration || '-'}</b></p><p class="italic text-slate-700 font-bold">👨‍✈️ ${a.instructor}</p></div></div>`;
+            });
+            document.getElementById('dynamic-content').innerHTML = html + `</div>`;
+        }
+
+        function openAssignModal() {
+            document.getElementById('modal-title').innerText = "Assign Exam Task";
+            document.getElementById('modal-body').innerHTML = `
+                <div class="space-y-6">
+                    <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Assign to (Multi-select)</label>
+                    <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border rounded-2xl bg-white no-scrollbar">${state.users.map(u=>`<div><input type="checkbox" id="ucb-${u.id}" value="${u.id}" data-name="${u.name}" class="ucb hidden custom-checkbox"><label for="ucb-${u.id}" class="flex items-center px-3 py-2 bg-slate-50 border border-transparent rounded-lg text-[10px] font-black text-slate-600 cursor-pointer hover:bg-slate-100 transition-all truncate">${u.name}</label></div>`).join('')}</div></div>
+                    <div class="flex p-1 bg-slate-100 rounded-2xl"><button onclick="toggleAssignCat('type')" id="tab-t" class="flex-1 py-2.5 text-[9px] font-black rounded-xl bg-white text-blue-600 shadow-sm">TYPE RATING</button><button onclick="toggleAssignCat('mand')" id="tab-m" class="flex-1 py-2.5 text-[9px] font-black rounded-xl text-slate-500">MANDATORY</button></div>
+                    <div id="col-t"><select id="as-t" class="w-full p-3 border rounded-xl text-sm font-bold"><option value="">-- Choose Type Rating Exam --</option>${state.questionSets.filter(q=>q.category==='Type Rating').map(q=>`<option value="${q.title}">${q.title}</option>`).join('')}</select></div>
+                    <div id="col-m" class="hidden"><select id="as-m" class="w-full p-3 border rounded-xl text-sm font-bold"><option value="">-- Choose Mandatory Exam --</option>${state.questionSets.filter(q=>q.category==='Mandatory Training').map(q=>`<option value="${q.title}">${q.title}</option>`).join('')}</select></div>
+                    <div><select id="as-inst" class="w-full p-3 border rounded-xl text-sm italic font-medium"><option value="">-- Select Instructor --</option>${state.instructors.map(i=>`<option value="${i.name} (${i.loaNo})">${i.name} (${i.loaNo})</option>`).join('')}</select></div>
+                    <div class="grid grid-cols-2 gap-4"><input type="date" id="as-date" class="p-3 border rounded-xl text-sm"><input type="time" id="as-time" class="p-3 border rounded-xl text-sm"></div>
+                    <div class="grid grid-cols-2 gap-4"><input type="number" id="as-dur-h" min="0" class="p-3 border rounded-xl text-sm" placeholder="Duration (Hours)"><input type="number" id="as-dur-m" min="0" max="59" class="p-3 border rounded-xl text-sm" placeholder="Duration (Minutes)"></div>
+                </div>
+            `;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveAssign()" class="px-10 py-3 bg-blue-600 text-white rounded-xl text-xs font-black shadow-lg uppercase tracking-widest">Assign Now</button>`;
+            document.getElementById('modal-container').classList.remove('hidden');
+        }
+
+        function toggleAssignCat(c) {
+            const isT = c === 'type';
+            document.getElementById('col-t').classList.toggle('hidden', !isT); document.getElementById('col-m').classList.toggle('hidden', isT);
+            document.getElementById('tab-t').className = isT ? "flex-1 py-2.5 text-[9px] font-black rounded-xl bg-white text-blue-600 shadow-sm" : "flex-1 py-2.5 text-[9px] font-black rounded-xl text-slate-500";
+            document.getElementById('tab-m').className = !isT ? "flex-1 py-2.5 text-[9px] font-black rounded-xl bg-white text-blue-600 shadow-sm" : "flex-1 py-2.5 text-[9px] font-black rounded-xl text-slate-500";
+            if (isT) document.getElementById('as-m').value = ""; else document.getElementById('as-t').value = "";
+        }
+
+        function saveAssign() {
+            const users = Array.from(document.querySelectorAll('.ucb:checked')).map(cb => ({ id: parseInt(cb.value), name: cb.dataset.name }));
+            const exam = document.getElementById('as-t').value || document.getElementById('as-m').value;
+            const inst = document.getElementById('as-inst').value, d = document.getElementById('as-date').value, t = document.getElementById('as-time').value;
+            const durH = document.getElementById('as-dur-h').value || '0', durM = document.getElementById('as-dur-m').value || '0';
+            const durStr = `${durH}h ${durM}m`;
+            if (users.length === 0 || !exam || !inst || !d || !t) return alert('Data Incomplete');
+            users.forEach(u => state.assignments.push({ id: Date.now()+Math.random(), userId: u.id, userName: u.name, examTitle: exam, instructor: inst, assignedDate: new Date().toLocaleDateString(), examDate: d, examTime: t, duration: durStr, status: 'PENDING', score: null, grade: null }));
+            syncToCloud(); // NEW CODE: Sync assignment
+            closeModal(); renderAssignment();
+        }
+
+        function deleteAssign(id) { if (confirm('Delete?')) { state.assignments = state.assignments.filter(x => x.id !== id); syncToCloud(); renderAssignment(); } }
+
+        // --- EXAM HISTORY & PRINT PDF ---
+        function renderExamHistory() {
+            const history = state.assignments.filter(a => a.status === 'COMPLETED');
+            let html = `
+                <div class="mb-8"><h2 class="text-xl font-bold tracking-tight uppercase">EXAM HISTORY</h2><p class="text-xs text-slate-500">Click on any record to view details and print PDF.</p></div>
+                <div class="space-y-3">
+            `;
+            if (history.length === 0) html += `<div class="py-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-100 text-slate-400 italic">No records.</div>`;
+            else {
+                history.forEach(a => {
+                    let sCl = "text-red-500", lbl = "FAILED";
+                    if (a.score === 100) { sCl = "text-gold"; lbl = "PERFECT"; }
+                    else if (a.score >= 86) { sCl = "text-green-500"; lbl = "EXCELLENT"; }
+                    else if (a.score >= 75) { sCl = "text-green-500"; lbl = "PASSED"; }
+                    
+                    html += `
+                        <div onclick="viewExamDetails(${a.id})" class="bg-dark-card p-6 rounded-2xl flex justify-between items-center border border-white/5 transition-all hover:bg-[#1a2233] cursor-pointer" title="Click to view details">
+                            <div class="flex flex-col gap-1.5">
+                                <h4 class="text-white text-lg font-bold leading-tight">${a.userName}</h4>
+                                <div class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">${a.examTitle} • ${formatDisplayDate(a.examDate)}</div>
+                            </div>
+                            <div class="text-right flex flex-col items-end">
+                                <span class="text-3xl md:text-4xl font-black ${sCl} leading-none tracking-tighter">${a.score}%</span>
+                                <span class="text-[9px] font-black mt-2 ${sCl} tracking-[0.2em] uppercase">${lbl}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('dynamic-content').innerHTML = html + `</div>`;
+        }
+
+        function viewExamDetails(assignmentId) {
+            const a = state.assignments.find(x => x.id === assignmentId);
+            const u = state.users.find(x => x.id === a.userId);
+            if(!a || !u) return;
+
+            const titleLower = a.examTitle.toLowerCase();
+            const isInitialOrUpgrade = titleLower.includes('initial') || titleLower.includes('upgrade');
+            const isRecurrent = titleLower.includes('recurrent');
+            const term = isInitialOrUpgrade ? 'Trainee' : 'Candidate';
+
+            const instParts = a.instructor.split('(');
+            const instName = instParts[0].trim();
+            const instLOA = instParts[2] ? instParts[2].replace(')','').trim() : (instParts[1] ? instParts[1].replace(')','').trim() : '-');
+
+            // PERBAIKAN: Mengambil jumlah dan data soal sesuai dengan Bank Soal sesungguhnya
+            const set = state.questionSets.find(q => q.title === a.examTitle);
+            const questions = set && set.questions.length > 0 ? set.questions : Array(10).fill({text: 'Sample Question Text...', options: {A: 'Option A', B: 'Option B', C: 'Correct Option', D: 'Option D'}, answer: 'C'});
+            
+            const totalQs = questions.length;
+            const correctCount = Math.round((a.score / 100) * totalQs);
+            let answersHtml = '';
+            
+            for(let i=0; i<totalQs; i++) {
+                const q = questions[i];
+                const isCorrect = i < correctCount;
+                if(isCorrect) {
+                    answersHtml += `
+                        <div class="mb-3 p-4 bg-green-50 border border-green-100 rounded-xl">
+                            <p class="font-bold text-sm text-slate-800 mb-1">Q${i+1}: ${q.text}</p>
+                            <p class="text-xs font-bold text-green-600">${q.answer}. ${q.options[q.answer]} ✓</p>
+                        </div>`;
+                } else {
+                    const wrongOpts = Object.keys(q.options).filter(k => k !== q.answer && q.options[k]);
+                    const wrongOpt = wrongOpts.length > 0 ? wrongOpts[0] : 'A';
+                    answersHtml += `
+                        <div class="mb-3 p-4 bg-red-50 border border-red-100 rounded-xl">
+                            <p class="font-bold text-sm text-slate-800 mb-1">Q${i+1}: ${q.text}</p>
+                            <p class="text-xs font-bold text-red-500 mb-1">${wrongOpt}. ${q.options[wrongOpt]} ✗</p>
+                            <p class="text-[10px] font-bold text-green-600">Correct: ${q.answer}. ${q.options[q.answer]}</p>
+                        </div>`;
+                }
+            }
+
+            const modal = document.getElementById('modal-container');
+            document.getElementById('modal-title').innerText = "Exam Result Details";
+            document.getElementById('modal-body').innerHTML = `
+                <div class="space-y-6">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200">
+                        <h4 class="font-black text-slate-800 uppercase tracking-widest text-xs mb-4 border-b pb-2">${term} INFORMATION</h4>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div><span class="text-slate-400 text-[10px] uppercase block">Name ${term}</span> <span class="font-bold text-slate-800">${u.name}</span></div>
+                            <div><span class="text-slate-400 text-[10px] uppercase block">Rank</span> <span class="font-bold text-slate-800">${u.rank}</span></div>
+                            <div><span class="text-slate-400 text-[10px] uppercase block">No. License</span> <span class="font-bold text-slate-800">${u.license}</span></div>
+                            <div><span class="text-slate-400 text-[10px] uppercase block">Name Instructor</span> <span class="font-bold text-slate-800">${instName}</span></div>
+                            <div><span class="text-slate-400 text-[10px] uppercase block">LOA Instructor</span> <span class="font-bold text-slate-800">${instLOA}</span></div>
+                            <div><span class="text-slate-400 text-[10px] uppercase block">Exam Date</span> <span class="font-bold text-slate-800">${formatDisplayDate(a.examDate)}</span></div>
+                            <div><span class="text-slate-400 text-[10px] uppercase block">Exam Time</span> <span class="font-bold text-slate-800">${a.examTime || '-'}</span></div>
+                            <div><span class="text-slate-400 text-[10px] uppercase block">Duration</span> <span class="font-bold text-slate-800">${a.duration || '-'}</span></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 text-center shadow-inner">
+                        <h4 class="font-black text-slate-800 uppercase tracking-widest text-xs mb-2">EXAMINATION RESULT</h4>
+                        <div class="text-5xl font-black ${a.score < 75 ? 'text-red-500' : 'text-green-500'} mb-2">${a.score}%</div>
+                        <div class="font-bold text-slate-800 text-sm uppercase">${a.grade} - ${correctCount} out of ${totalQs} correct</div>
+                        <div class="text-xs text-slate-500 mt-2">Passing Score: 75% | Result: ${a.score >= 75 ? '<span class="text-green-600 font-bold">✓ PASS</span>' : '<span class="text-red-500 font-bold">✗ FAIL</span>'}</div>
+                        ${isRecurrent ? `<div class="font-black text-xs mt-4 text-green-600 tracking-widest uppercase bg-green-50 inline-block px-3 py-1 rounded">CORRECTED TO 100%</div>` : ''}
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200">
+                        <h4 class="font-black text-slate-800 uppercase tracking-widest text-xs mb-4 border-b pb-2">ANSWER SUMMARY</h4>
+                        ${answersHtml}
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-footer').innerHTML = `
+                <button onclick="closeModal()" class="px-6 py-2.5 text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-wider">Close</button>
+                <button onclick="printExamResult(${assignmentId})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-100 uppercase tracking-widest flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    Print PDF
+                </button>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        function printExamResult(assignmentId) {
+            const a = state.assignments.find(x => x.id === assignmentId);
+            const u = state.users.find(x => x.id === a.userId);
+            if(!a || !u) return;
+
+            const titleLower = a.examTitle.toLowerCase();
+            const isInitialOrUpgrade = titleLower.includes('initial') || titleLower.includes('upgrade');
+            const isRecurrent = titleLower.includes('recurrent');
+            const term = isInitialOrUpgrade ? 'Trainee' : 'Candidate';
+
+            const instParts = a.instructor.split('(');
+            const instName = instParts[0].trim();
+            const instLOA = instParts[2] ? instParts[2].replace(')','').trim() : (instParts[1] ? instParts[1].replace(')','').trim() : '-');
+
+            // PERBAIKAN: Mengambil jumlah dan data soal sesuai dengan Bank Soal sesungguhnya
+            const set = state.questionSets.find(q => q.title === a.examTitle);
+            const questions = set && set.questions.length > 0 ? set.questions : Array(10).fill({text: 'Sample Question Text...', options: {A: 'Option A', B: 'Option B', C: 'Correct Option', D: 'Option D'}, answer: 'C'});
+            
+            const totalQs = questions.length;
+            const correctCount = Math.round((a.score / 100) * totalQs);
+            let answersHtml = '';
+            
+            for(let i=0; i<totalQs; i++) {
+                const q = questions[i];
+                const isCorrect = i < correctCount;
+                if(isCorrect) {
+                    answersHtml += `
+                        <div class="print-summary-item correct">
+                            <b>Q${i+1}: ${q.text}</b><br>
+                            ${q.answer}. ${q.options[q.answer]} ✓
+                        </div>`;
+                } else {
+                    const wrongOpts = Object.keys(q.options).filter(k => k !== q.answer && q.options[k]);
+                    const wrongOpt = wrongOpts.length > 0 ? wrongOpts[0] : 'A';
+                    answersHtml += `
+                        <div class="print-summary-item wrong">
+                            <b>Q${i+1}: ${q.text}</b><br>
+                            ${wrongOpt}. ${q.options[wrongOpt]} ✗ (Correct: ${q.answer}. ${q.options[q.answer]})
+                        </div>`;
+                }
+            }
+
+            const html = `
+                <div class="print-page">
+                    <div class="print-header">
+                        <img src="https://lh3.googleusercontent.com/d/1WNcGjsZ9_Fp54xzOl01EYRqM6-wY5Zh7" alt="TWA Logo" style="display: block; margin: 0 auto 15px auto; height: 70px; object-fit: contain;" />
+                        <h1>Transwisata Prima Aviation</h1>
+                        <h2>FLIGHT CREW EXAMINATION RESULT</h2>
+                        <h3>${a.examTitle}</h3>
+                        <div style="text-align: right; font-size: 10pt; margin-top: 10px;">Form No: ${state.formNo ? state.formNo.value : '-'}</div>
+                    </div>
+
+                    <div class="print-section-title">${term.toUpperCase()} INFORMATION</div>
+                    <table class="print-table">
+                        <tr><td>Name ${term}:</td><td><b>${u.name}</b></td></tr>
+                        <tr><td>Rank:</td><td><b>${u.rank}</b></td></tr>
+                        <tr><td>No. License:</td><td><b>${u.license}</b></td></tr>
+                        <tr><td>Name Instructor:</td><td><b>${instName}</b></td></tr>
+                        <tr><td>LOA Instructor:</td><td><b>${instLOA}</b></td></tr>
+                        <tr><td>Exam Date:</td><td><b>${formatDisplayDate(a.examDate)}</b></td></tr>
+                        <tr><td>Exam Time:</td><td><b>${a.examTime || '-'}</b></td></tr>
+                        <tr><td>Duration:</td><td><b>${a.duration || '-'}</b></td></tr>
+                    </table>
+
+                    <div class="print-section-title" style="text-align: center;">EXAMINATION RESULT</div>
+                    <div class="print-result-box">
+                        <div class="print-score" style="color: ${a.score < 75 ? 'red' : 'green'};">${a.score}%</div>
+                        <div style="font-weight: bold; margin-bottom: 5px;">${a.grade} - ${correctCount} out of ${totalQs} correct</div>
+                        <div>Passing Score: 75% | Result: ${a.score >= 75 ? '✓ PASS' : '✗ FAIL'}</div>
+                        ${isRecurrent ? `<div style="font-weight: bold; margin-top: 10px; color: green;">CORRECTED TO 100%</div>` : ''}
+                    </div>
+
+                    <div class="print-section-title">ANSWER SUMMARY</div>
+                    <div>${answersHtml}</div>
+
+                    <div class="print-signatures">
+                        <div class="print-sig-box">
+                            <div class="print-sig-line">${term} Signature</div>
+                        </div>
+                        <div class="print-sig-box">
+                            <div class="print-sig-line">Examiner Signature</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('print-area').innerHTML = html;
+            
+            // PERBAIKAN: Tunggu gambar logo selesai didownload oleh browser sebelum membuka jendela Print
+            const printLogo = document.querySelector('#print-area img');
+            if (printLogo) {
+                // Jika gambar berhasil dimuat, buka print
+                printLogo.onload = function() {
+                    window.print();
+                    setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000);
+                };
+                // Jika gambar gagal dimuat (misal jaringan lambat), tetap paksa buka print
+                printLogo.onerror = function() {
+                    window.print();
+                    setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000);
+                };
+            } else {
+                window.print();
+                setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000);
+            }
+        }
+
+        // --- USER PORTAL ---
+        function renderUserPortal() {
+            const activeTasks = state.assignments.filter(a => a.userId === state.currentUser.id && a.status !== 'COMPLETED');
+            const historyTasks = state.assignments.filter(a => a.userId === state.currentUser.id && a.status === 'COMPLETED');
+            
+            let html = `
+                <div class="bg-blue-600 p-8 rounded-[40px] text-white shadow-2xl mb-8 relative overflow-hidden">
+                    <div class="relative z-10">
+                        <h2 class="text-2xl font-black uppercase">Welcome, ${state.currentUser.name}</h2>
+                        <p class="text-sm opacity-70 mt-1">Crew Training Platform</p>
+                    </div>
+                    <div class="absolute -right-20 -bottom-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"></div>
+                </div>
+                
+                <div class="bg-white p-10 rounded-[40px] shadow-sm border border-slate-100 mb-8">
+                    <h3 class="text-lg font-black text-slate-800 mb-6 uppercase tracking-widest">Active Exams</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            `;
+            
+            if (activeTasks.length === 0) {
+                html += `<div class="col-span-full py-12 text-center text-slate-400 italic">No active tasks.</div>`;
+            } else {
+                activeTasks.forEach(t => {
+                    const set = state.questionSets.find(q => q.title === t.examTitle) || {};
+                    const ratingOrMandatory = set.rating || set.mandatoryType || 'Unknown';
+                    const qCount = set.questions ? set.questions.length : 0;
+                    const typeLabel = set.type || 'Exam';
+
+                    html += `
+                        <div class="border-2 border-slate-50 p-6 rounded-3xl bg-white hover:border-blue-200 transition-all shadow-sm flex flex-col justify-between">
+                            <div>
+                                <h4 class="font-bold text-slate-800 text-base leading-snug">${typeLabel} - ${ratingOrMandatory}</h4>
+                                <p class="text-xs text-slate-500 mt-1 font-medium">Model ${set.model || '-'} · ${qCount} questions · date ${formatDisplayDate(t.examDate)} · time ${t.examTime || '-'}</p>
+                                <p class="text-xs text-slate-700 mt-3 font-bold">👨‍✈️ ${t.instructor}</p>
+                            </div>
+                            <button onclick="startRealExam(${t.id})" class="mt-6 w-full py-3 bg-blue-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all">Start Exam</button>
+                        </div>
+                    `;
+                });
+            }
+            html += `</div></div>`;
+
+            html += `
+                <div class="mb-8">
+                    <h2 class="text-xl font-bold tracking-tight uppercase">EXAM HISTORY</h2>
+                    <p class="text-xs text-slate-500">Your historical performance records.</p>
+                </div>
+                <div class="space-y-3">
+            `;
+            
+            if (historyTasks.length === 0) {
+                html += `<div class="py-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-100 text-slate-400 italic">No records.</div>`;
+            } else {
+                historyTasks.forEach(a => {
+                    let sCl = "text-red-500", lbl = "FAILED";
+                    if (a.score === 100) { sCl = "text-gold"; lbl = "PERFECT"; }
+                    else if (a.score >= 86) { sCl = "text-green-500"; lbl = "EXCELLENT"; }
+                    else if (a.score >= 75) { sCl = "text-green-500"; lbl = "PASSED"; }
+                    
+                    html += `
+                        <div class="bg-dark-card p-6 rounded-2xl flex justify-between items-center border border-white/5 transition-all">
+                            <div class="flex flex-col gap-1.5">
+                                <h4 class="text-white text-lg font-bold leading-tight">${a.userName}</h4>
+                                <div class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">${a.examTitle} • ${formatDisplayDate(a.examDate)}</div>
+                            </div>
+                            <div class="text-right flex flex-col items-end">
+                                <span class="text-3xl md:text-4xl font-black ${sCl} leading-none tracking-tighter">${a.score}%</span>
+                                <span class="text-[9px] font-black mt-2 ${sCl} tracking-[0.2em] uppercase">${lbl}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            html += `</div>`;
+
+            document.getElementById('dynamic-content').innerHTML = html;
+        }
+
+        function startRealExam(assignmentId) {
+            const a = state.assignments.find(x => x.id === assignmentId);
+            const set = state.questionSets.find(q => q.title === a.examTitle);
+
+            if (!set || !set.questions || set.questions.length === 0) return alert('Exam questions not found.');
+
+            const now = new Date();
+            const eDateParts = a.examDate.split('-');
+            if (eDateParts.length === 3) {
+                const eDate = new Date(eDateParts[0], eDateParts[1] - 1, eDateParts[2]);
+                eDate.setHours(0,0,0,0);
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+                if (today < eDate) {
+                    return alert("The exam cannot be started because the assigned date has not been reached.");
+                }
+
+                if (today.getTime() === eDate.getTime() && a.examTime) {
+                    const tParts = a.examTime.split(':');
+                    if (tParts.length === 2) {
+                        const currMins = now.getHours() * 60 + now.getMinutes();
+                        const examMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
+                        if (currMins < examMins) {
+                            return alert("The exam cannot be started because the assigned time has not been reached.");
+                        }
+                    }
+                }
+            }
+
+            let durMins = 60;
+            if (a.duration) {
+                let h = 0, m = 0;
+                const hm = a.duration.match(/(\d+)h/);
+                const mm = a.duration.match(/(\d+)m/);
+                if (hm) h = parseInt(hm[1]);
+                if (mm) m = parseInt(mm[1]);
+                if (h > 0 || m > 0) durMins = (h * 60) + m;
+            }
+
+            window.activeExam = {
+                assignment: a,
+                set: set,
+                questions: set.questions,
+                currentIndex: 0,
+                answers: {},
+                timeLeft: durMins * 60,
+                timerId: null
+            };
+
+            a.status = 'IN PROGRESS';
+            syncToCloud(); // NEW CODE: Sync status in progress
+            
+            window.activeExam.timerId = setInterval(() => {
+                window.activeExam.timeLeft--;
+                if (window.activeExam.timeLeft <= 0) {
+                    clearInterval(window.activeExam.timerId);
+                    alert("Time is up! Submitting your exam automatically.");
+                    submitExam();
+                } else {
+                    updateTimerUI();
+                }
+            }, 1000);
+
+            renderActiveExamUI();
+        }
+
+        function updateTimerUI() {
+            const el = document.getElementById('exam-timer-display');
+            if (el && window.activeExam) {
+                const m = Math.floor(window.activeExam.timeLeft / 60).toString().padStart(2, '0');
+                const s = (window.activeExam.timeLeft % 60).toString().padStart(2, '0');
+                el.innerText = `${m}:${s}`;
+            }
+        }
+
+        function renderActiveExamUI() {
+            const ex = window.activeExam;
+            const q = ex.questions[ex.currentIndex];
+            const isLast = ex.currentIndex === ex.questions.length - 1;
+            const isFirst = ex.currentIndex === 0;
+
+            let html = `
+                <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden page-fade">
+                    <div class="bg-blue-600 p-6 text-white flex justify-between items-center">
+                        <div>
+                            <h3 class="font-black text-lg tracking-wider uppercase">${ex.set.title}</h3>
+                            <p class="text-xs text-blue-200 mt-1 uppercase tracking-widest">Question ${ex.currentIndex + 1} of ${ex.questions.length}</p>
+                        </div>
+                        <div class="bg-blue-800/50 px-4 py-2 rounded-xl border border-blue-500 text-center">
+                            <span class="text-[10px] uppercase font-bold text-blue-200 block mb-1">Time Remaining</span>
+                            <span id="exam-timer-display" class="font-mono font-bold text-2xl">--:--</span>
+                        </div>
+                    </div>
+                    
+                    <div class="p-8 md:p-12">
+                        <span class="text-[10px] font-black bg-blue-50 text-blue-600 px-3 py-1 rounded uppercase tracking-widest">${q.section}</span>
+                        <h4 class="text-xl font-bold text-slate-800 mt-6 mb-8 leading-relaxed">${q.id}. ${q.text}</h4>
+                        
+                        <div class="space-y-4">
+                            ${['A', 'B', 'C', 'D'].map(opt => {
+                                const optText = q.options[opt];
+                                if (!optText) return '';
+                                const isSelected = ex.answers[q.id] === opt;
+                                return `
+                                    <div onclick="selectExamOption('${opt}')" class="p-5 border-2 rounded-2xl cursor-pointer transition-all ${isSelected ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100 hover:border-blue-300 bg-white'}">
+                                        <div class="flex items-center gap-4">
+                                            <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}">${opt}</div>
+                                            <span class="font-medium text-slate-700 text-base">${optText}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-6 border-t border-slate-100 flex justify-between items-center">
+                        <button onclick="navigateExam(-1)" class="px-8 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 uppercase tracking-widest transition-colors ${isFirst ? 'invisible' : ''}">Previous</button>
+                        ${isLast ? `
+                            <button onclick="submitExam()" class="px-10 py-3 bg-green-600 text-white rounded-xl text-sm font-black shadow-lg shadow-green-100 uppercase tracking-widest hover:bg-green-700 transition-colors">Submit Your Answer</button>
+                        ` : `
+                            <button onclick="navigateExam(1)" class="px-10 py-3 bg-blue-600 text-white rounded-xl text-sm font-black shadow-lg shadow-blue-100 uppercase tracking-widest hover:bg-blue-700 transition-colors">Next</button>
+                        `}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('dynamic-content').innerHTML = html;
+            updateTimerUI(); 
+        }
+
+        function selectExamOption(opt) {
+            window.activeExam.answers[window.activeExam.questions[window.activeExam.currentIndex].id] = opt;
+            renderActiveExamUI(); 
+            
+            if (window.activeExam.currentIndex < window.activeExam.questions.length - 1) {
+                setTimeout(() => navigateExam(1), 300);
+            }
+        }
+
+        function navigateExam(dir) {
+            window.activeExam.currentIndex += dir;
+            renderActiveExamUI();
+        }
+
+        function submitExam() {
+            if (!confirm("Are you sure you want to submit your exam?")) return;
+            
+            const ex = window.activeExam;
+            clearInterval(ex.timerId);
+
+            let correctCount = 0;
+            ex.questions.forEach(q => {
+                if (ex.answers[q.id] === q.answer) correctCount++;
+            });
+
+            const score = Math.round((correctCount / ex.questions.length) * 100);
+            let grade = 'FAILED';
+            if (score === 100) grade = 'PERFECT';
+            else if (score >= 86) grade = 'EXCELLENT';
+            else if (score >= 75) grade = 'PASSED';
+
+            ex.assignment.status = 'COMPLETED';
+            ex.assignment.score = score;
+            ex.assignment.grade = grade;
+
+            syncToCloud(); // NEW CODE: Sync submitted exam result
+            renderExamResultUserView(ex, score, grade, correctCount);
+        }
+
+        function renderExamResultUserView(ex, score, grade, correctCount) {
+            const isRecurrent = ex.assignment.examTitle.toLowerCase().includes('recurrent');
+            let sCl = "text-red-500";
+            if (score === 100) sCl = "text-gold";
+            else if (score >= 75) sCl = "text-green-500";
+
+            let answersHtml = '';
+            ex.questions.forEach(q => {
+                const userAns = ex.answers[q.id];
+                const isCorrect = userAns === q.answer;
+                if(isCorrect) {
+                    answersHtml += `
+                        <div class="mb-3 p-5 bg-green-50 border border-green-100 rounded-xl">
+                            <p class="font-bold text-sm text-slate-800 mb-2">Q${q.id}: ${q.text}</p>
+                            <p class="text-xs font-bold text-green-600">${q.answer}. ${q.options[q.answer]} ✓</p>
+                        </div>`;
+                } else {
+                    answersHtml += `
+                        <div class="mb-3 p-5 bg-red-50 border border-red-100 rounded-xl">
+                            <p class="font-bold text-sm text-slate-800 mb-2">Q${q.id}: ${q.text}</p>
+                            <p class="text-xs font-bold text-red-500 mb-2">${userAns ? userAns + '. ' + q.options[userAns] : 'No Answer'} ✗</p>
+                            <p class="text-[10px] font-bold text-green-600">Correct: ${q.answer}. ${q.options[q.answer]}</p>
+                        </div>`;
+                }
+            });
+
+            let html = `
+                <div class="max-w-3xl mx-auto space-y-6 page-fade">
+                    <div class="bg-white p-8 rounded-3xl border border-slate-200 text-center shadow-sm">
+                        <h2 class="font-black text-slate-800 uppercase tracking-widest text-sm mb-4">EXAMINATION RESULT</h2>
+                        <div class="text-7xl font-black ${sCl} mb-2">${score}%</div>
+                        <div class="font-black text-slate-800 text-lg uppercase tracking-widest">${grade}</div>
+                        <div class="text-sm font-bold text-slate-500 mt-2">${correctCount} out of ${ex.questions.length} correct</div>
+                        <div class="text-xs text-slate-400 mt-4 pt-4 border-t border-slate-100">Passing Score: 75%</div>
+                        ${isRecurrent ? `<div class="font-black text-xs mt-6 text-green-600 tracking-widest uppercase bg-green-50 inline-block px-4 py-2 rounded-lg">CORRECTED TO 100%</div>` : ''}
+                    </div>
+
+                    <div class="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                        <h3 class="font-black text-slate-800 uppercase tracking-widest text-sm mb-6 border-b pb-4">ANSWER SUMMARY</h3>
+                        ${answersHtml}
+                    </div>
+
+                    <button onclick="backToDashboardFromExam()" class="w-full py-4 bg-slate-900 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-colors">Back To Dashboard</button>
+                </div>
+            `;
+
+            document.getElementById('dynamic-content').innerHTML = html;
+            delete window.activeExam; 
+        }
+
+        function backToDashboardFromExam() {
+            renderUserPortal();
+        }
+
+        function closeModal() { document.getElementById('modal-container').classList.add('hidden'); }
+        function logout() { location.reload(); }
+
+        // --- SUPER ADMIN & VERIFICATION LOGIC ---
+        let pendingVerifyCallback = null;
+
+        function promptVerify(callback) {
+            if (state.currentUser && state.currentUser.role === 'superadmin') {
+                callback(); 
+                return;
+            }
+            pendingVerifyCallback = callback;
+            document.getElementById('verify-code-input').value = '';
+            document.getElementById('verify-modal').classList.remove('hidden');
+        }
+
+        function closeVerifyModal() {
+            document.getElementById('verify-modal').classList.add('hidden');
+            pendingVerifyCallback = null;
+        }
+
+        function processVerify() {
+            const code = document.getElementById('verify-code-input').value;
+            if (code === state.superAdmin.code) {
+                // Simpan callback ke variabel sementara sebelum pop-up ditutup
+                const callback = pendingVerifyCallback; 
+                closeVerifyModal();
+                // Jalankan callback yang sudah disimpan
+                if (callback) callback();
+            } else {
+                alert('Kode verifikasi salah! / Invalid verification code!');
+            }
+        }
+
+        function renderSuperAdmin() {
+            const container = document.getElementById('dynamic-content');
+            container.innerHTML = `
+                <div class="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl mb-8 relative overflow-hidden">
+                    <div class="relative z-10">
+                        <h2 class="text-2xl font-black uppercase tracking-widest text-gold">Super Admin Portal</h2>
+                        <p class="text-sm opacity-70 mt-2 font-medium">System Security & Credentials Management</p>
+                    </div>
+                    <div class="absolute -right-20 -top-20 w-64 h-64 bg-blue-600/20 rounded-full blur-3xl"></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                        <div class="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                            <span class="text-2xl">👨‍💻</span>
+                            <h3 class="text-lg font-black text-slate-800 uppercase tracking-widest">Admin Credentials</h3>
+                        </div>
+                        <div class="space-y-5">
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Registered Username</label>
+                                <input type="text" id="sa-admin-u" value="${state.admin.u || ''}" class="w-full p-4 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-blue-500 transition-colors">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Registered Password</label>
+                                <input type="text" id="sa-admin-p" value="${state.admin.p || ''}" class="w-full p-4 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-blue-500 transition-colors">
+                            </div>
+                            <div class="flex gap-3 pt-2">
+                                <button onclick="saveAdminCreds()" class="flex-1 py-3.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">Save Changes</button>
+                                <button onclick="deleteAdminCreds()" class="flex-1 py-3.5 bg-red-50 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-100 transition-all border border-red-100">Delete Admin</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                        <div class="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                            <span class="text-2xl">🔐</span>
+                            <h3 class="text-lg font-black text-slate-800 uppercase tracking-widest">Verification Code</h3>
+                        </div>
+                        <p class="text-xs font-medium text-slate-500 mb-6 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100">This secret code is required for regular Admins to edit or import question banks. Keep it safe.</p>
+                        <div class="space-y-5">
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Active Code</label>
+                                <input type="text" id="sa-verify-c" value="${state.superAdmin.code}" class="w-full p-4 border border-slate-200 rounded-xl text-2xl tracking-[0.5em] font-black text-center text-blue-600 bg-blue-50 outline-none focus:border-blue-500 transition-colors">
+                            </div>
+                            <div class="pt-2">
+                                <button onclick="saveVerifyCode()" class="w-full py-3.5 bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-green-100 hover:bg-green-700 transition-all">Save Verification Code</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function saveAdminCreds() {
+            const u = document.getElementById('sa-admin-u').value.trim();
+            const p = document.getElementById('sa-admin-p').value.trim();
+            if(!u || !p) return alert('Username and Password cannot be empty!');
+            state.admin.u = u;
+            state.admin.p = p;
+            syncToCloud(); // NEW CODE: Sync admin update
+            alert('Admin credentials updated successfully.');
+        }
+
+        function deleteAdminCreds() {
+            if(confirm('Are you sure you want to remove admin access? The system will have no regular admin until you set it again.')) {
+                state.admin.u = null;
+                state.admin.p = null;
+                document.getElementById('sa-admin-u').value = '';
+                document.getElementById('sa-admin-p').value = '';
+                syncToCloud(); // NEW CODE: Sync admin delete
+                alert('Admin credentials deleted.');
+            }
+        }
+
+        function saveVerifyCode() {
+            const code = document.getElementById('sa-verify-c').value.trim();
+            if(!code) return alert('Verification code cannot be empty!');
+            state.superAdmin.code = code;
+            syncToCloud(); // NEW CODE: Sync super admin update
+            alert('Verification code updated successfully.');
+        }
+    </script>
+</body>
+</html>
