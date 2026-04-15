@@ -93,7 +93,7 @@
     <!-- Loading Screen -->
     <div id="app-loader">
         <div class="spinner mb-4"></div>
-        <div class="text-white font-bold tracking-widest text-sm uppercase" id="loader-text">E CREW Examination System Transwisata</div>
+        <div class="text-white font-bold tracking-widest text-sm uppercase" id="loader-text">E CREW Examination System</div>
         <div class="text-blue-400 text-xs mt-2 opacity-70" id="loader-subtext">Connecting to Cloud...</div>
     </div>
 
@@ -684,7 +684,7 @@
             document.getElementById('modal-body').innerHTML = `
                 <div class="space-y-6">
                     <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Assign to (Multi-select)</label>
-                    <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border rounded-2xl bg-white no-scrollbar">${state.users.map(u=>`<div><input type="checkbox" id="ucb-${u.id}" value="${u.id}" data-name="${u.name}" class="ucb hidden custom-checkbox"><label for="ucb-${u.id}" class="flex items-center px-3 py-2 bg-slate-50 border border-transparent rounded-lg text-[10px] font-black text-slate-600 cursor-pointer hover:bg-slate-100 transition-all truncate">${u.name}</label></div>`).join('')}</div></div>
+                    <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border rounded-2xl bg-white no-scrollbar">${state.users.map(u=>{ const r = u.rating ? (u.rating.includes('(') ? u.rating.split('(')[1].replace(')','') : u.rating) : '-'; return `<div><input type="checkbox" id="ucb-${u.id}" value="${u.id}" data-name="${u.name}" class="ucb hidden custom-checkbox"><label for="ucb-${u.id}" class="flex items-center px-3 py-2 bg-slate-50 border border-transparent rounded-lg text-[10px] font-black text-slate-600 cursor-pointer hover:bg-slate-100 transition-all truncate" title="${u.name} (${r})">${u.name} <span class="text-blue-500 ml-1">(${r})</span></label></div>`}).join('')}</div></div>
                     <div class="flex p-1 bg-slate-100 rounded-2xl"><button onclick="toggleAssignCat('type')" id="tab-t" class="flex-1 py-2.5 text-[9px] font-black rounded-xl bg-white text-blue-600 shadow-sm">TYPE RATING</button><button onclick="toggleAssignCat('mand')" id="tab-m" class="flex-1 py-2.5 text-[9px] font-black rounded-xl text-slate-500">MANDATORY</button></div>
                     <div id="col-t"><select id="as-t" class="w-full p-3 border rounded-xl text-sm font-bold"><option value="">-- Choose Type Rating Exam --</option>${state.questionSets.filter(q=>q.category==='Type Rating').map(q=>`<option value="${q.title}">${q.title}</option>`).join('')}</select></div>
                     <div id="col-m" class="hidden"><select id="as-m" class="w-full p-3 border rounded-xl text-sm font-bold"><option value="">-- Choose Mandatory Exam --</option>${state.questionSets.filter(q=>q.category==='Mandatory Training').map(q=>`<option value="${q.title}">${q.title}</option>`).join('')}</select></div>
