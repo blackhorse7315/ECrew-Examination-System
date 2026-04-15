@@ -190,12 +190,17 @@
                             <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Examination System Transwisata</p>
                         </div>
                     </div>
-                    <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2 md:gap-4">
                         <div class="text-right hidden xs:block">
                             <p id="user-display-name" class="text-xs font-bold text-slate-900">User</p>
                             <p id="user-display-role" class="text-[9px] text-blue-500 font-bold uppercase tracking-widest">Role</p>
                         </div>
-                        <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                        <!-- PERBAIKAN: Tombol Refresh diperjelas dengan warna biru dan teks 'SYNC' -->
+                        <button onclick="refreshData()" class="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors border border-blue-100 shadow-sm" title="Sync / Refresh Data">
+                            <svg id="icon-refresh" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            <span class="text-[10px] font-black uppercase tracking-widest hidden sm:block">Sync</span>
+                        </button>
+                        <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Logout">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                         </button>
                     </div>
@@ -254,7 +259,7 @@
     <!-- NEW CODE: GOOGLE CLOUD SYNC LOGIC & STATE OVERRIDE -->
     <script>
         // MASUKAN WEB APP URL ANDA DI SINI
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz7f7glp2Sgafq5grqytbe3Bsbh-nijYPJPsz__u3vvIrMjQXBjgwgONp014upDEMGOUw/exec'; 
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx3C4HV9ICNATNe1CZFlwO1I0LaeS3N8utnDJGvqR1C9Y6d-mEK33mDJIZEn02a4YlIEg/exec'; 
 
         // --- CENTRAL STATE ---
         const state = {
@@ -321,6 +326,27 @@
             } catch (error) {
                 console.error('Failed to load data:', error);
             }
+        }
+
+        // NEW CODE: Fungsi Sinkronisasi Manual untuk menarik data terbaru
+        async function refreshData() {
+            const icon = document.getElementById('icon-refresh');
+            if (icon) icon.classList.add('animate-spin');
+            
+            await loadDataFromCloud(); // Tarik data terbaru dari Google Sheets
+            
+            // Render ulang tampilan sesuai peran pengguna yang sedang login
+            if (state.currentUser) {
+                if (state.currentUser.role === 'superadmin') {
+                    renderSuperAdmin();
+                } else if (state.isAdmin) {
+                    renderTabContent(state.activeTab);
+                } else {
+                    renderUserPortal();
+                }
+            }
+            
+            if (icon) icon.classList.remove('animate-spin');
         }
 
         function syncToCloud() {
