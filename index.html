@@ -259,7 +259,7 @@
     <!-- NEW CODE: GOOGLE CLOUD SYNC LOGIC & STATE OVERRIDE -->
     <script>
         // MASUKAN WEB APP URL ANDA DI SINI
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMdO0vLh34LRJkjkTXF0zVsXkNVOkeMnrmNVPxDAFLbgU0desOfa_mVqwYuGVNfO--sQ/exec'; 
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx04Tmb50nW5BGYkcgJT8CUqwCVeDjV3vR-MQZBTgyz_uWHfCjtdFbHNN-qSHZs4QvWQg/exec'; 
 
         // --- CENTRAL STATE ---
         const state = {
@@ -643,6 +643,17 @@
                     <div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Rank</p><p class="text-sm font-bold text-blue-600">${u.rank}</p></div>
                     <div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">License</p><p class="text-sm font-bold text-slate-800">${u.license}</p></div>
                     <div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Password</p><p class="text-sm font-bold text-slate-800">${u.password}</p></div>
+                    
+                    <!-- NEW CODE: Menampilkan data Sign URL beserta PREVIEW pada halaman detail -->
+                    <div class="p-4 bg-white border border-slate-100 rounded-2xl col-span-2 overflow-hidden">
+                        <p class="text-[9px] font-black text-slate-400 uppercase mb-3">Signature Tag / Sign URL</p>
+                        ${u.signUrl ? `
+                            <div class="h-20 mb-3 border border-dashed border-slate-200 rounded-xl flex items-center justify-center p-2 bg-slate-50">
+                                ${u.signUrl}
+                            </div>
+                            <p class="text-[10px] font-mono text-slate-500 truncate bg-slate-50 p-2 rounded-lg border border-slate-100">${u.signUrl.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+                        ` : `<p class="text-xs font-medium text-slate-400 italic">No signature data</p>`}
+                    </div>
                 </div>
             `;
             document.getElementById('modal-footer').innerHTML = `<button onclick="deleteUser(${u.id})" class="mr-auto px-4 py-2 text-xs font-bold text-red-500 uppercase">Delete User</button><button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Close</button><button onclick="openEditUser(${u.id})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase">Edit Data</button>`;
@@ -660,6 +671,15 @@
                         <select id="eu-rating" class="p-3 border rounded-xl text-sm">${state.lookups.ratings.map(r=>`<option value="${r}" ${u.rating===r?'selected':''}>${r}</option>`).join('')}</select>
                     </div>
                     <input type="text" id="eu-license" value="${u.license}" class="w-full p-3 border rounded-xl text-sm" placeholder="License">
+                    
+                    <!-- NEW CODE: Kolom input Sign URL dengan fitur LIVE PREVIEW -->
+                    <div class="pt-2 border-t border-slate-100">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Signature Preview</p>
+                        <div id="sign-preview-box" class="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl mb-3 flex items-center justify-center p-2 overflow-hidden">
+                            ${u.signUrl ? u.signUrl : '<span class="text-[10px] text-slate-400 italic">No signature yet</span>'}
+                        </div>
+                        <textarea id="eu-sign" oninput="document.getElementById('sign-preview-box').innerHTML = this.value || '<span class=\\'text-[10px] text-slate-400 italic\\'>No signature yet</span>'" rows="2" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono bg-white outline-none focus:border-blue-500 transition-colors" placeholder='Paste Signature Tag here, e.g. <img src="..." />'>${u.signUrl || ''}</textarea>
+                    </div>
                 </div>
             `;
             document.getElementById('modal-footer').innerHTML = `<button onclick="viewUserDetail(${uid})" class="px-4 py-2 text-xs font-bold text-slate-400">Back</button><button onclick="saveUserEdit(${uid})" class="px-8 py-2.5 bg-green-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Save</button>`;
@@ -670,7 +690,11 @@
             u.name = document.getElementById('eu-name').value; u.password = document.getElementById('eu-pass').value;
             u.rank = document.getElementById('eu-rank').value; u.rating = document.getElementById('eu-rating').value;
             u.license = document.getElementById('eu-license').value;
-            syncToCloud(); // NEW CODE: Sync edit user
+            
+            // NEW CODE: Simpan variabel signUrl
+            u.signUrl = document.getElementById('eu-sign').value; 
+            
+            syncToCloud(); 
             viewUserDetail(uid); renderUserData();
         }
 
@@ -688,19 +712,40 @@
         }
 
         function openInstructorModal(mode, id) {
-            const i = mode === 'edit' ? state.instructors.find(x => x.id === id) : { name: '', loaNo: '' };
+            const i = mode === 'edit' ? state.instructors.find(x => x.id === id) : { name: '', loaNo: '', signUrl: '' };
             document.getElementById('modal-title').innerText = mode === 'edit' ? "Edit Instructor" : "Add Instructor";
-            document.getElementById('modal-body').innerHTML = `<div class="space-y-4"><input type="text" id="in-name" value="${i.name}" class="w-full p-4 border rounded-xl text-sm" placeholder="Full Name"><input type="text" id="in-loa" value="${i.loaNo}" class="w-full p-4 border rounded-xl text-sm" placeholder="LOA No."></div>`;
-            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveInstructor(${mode==='edit'?id:'null'})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-lg uppercase">Save Data</button>`;
+            document.getElementById('modal-body').innerHTML = `
+                <div class="space-y-4">
+                    <input type="text" id="in-name" value="${i.name}" class="w-full p-4 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 transition-colors" placeholder="Full Name">
+                    <input type="text" id="in-loa" value="${i.loaNo}" class="w-full p-4 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 transition-colors" placeholder="LOA No.">
+                    
+                    <!-- NEW CODE: Kolom input Sign URL dengan fitur LIVE PREVIEW untuk Instructor -->
+                    <div class="pt-2 border-t border-slate-100">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Signature Preview</p>
+                        <div id="inst-sign-preview-box" class="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl mb-3 flex items-center justify-center p-2 overflow-hidden">
+                            ${i.signUrl ? i.signUrl : '<span class="text-[10px] text-slate-400 italic">No signature yet</span>'}
+                        </div>
+                        <textarea id="in-sign" oninput="document.getElementById('inst-sign-preview-box').innerHTML = this.value || '<span class=\\'text-[10px] text-slate-400 italic\\'>No signature yet</span>'" rows="2" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono bg-white outline-none focus:border-blue-500 transition-colors" placeholder='Paste Signature Tag here, e.g. <img src="..." />'>${i.signUrl || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">Cancel</button><button onclick="saveInstructor(${mode==='edit'?id:'null'})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-100 uppercase tracking-widest hover:bg-blue-700 transition-all">Save Data</button>`;
             document.getElementById('modal-container').classList.remove('hidden');
         }
 
         function saveInstructor(id) {
             const n = document.getElementById('in-name').value, l = document.getElementById('in-loa').value;
+            const s = document.getElementById('in-sign').value; // Mengambil nilai Sign URL
+            
             if (!n || !l) return;
-            if (id) { const i = state.instructors.find(x => x.id === id); i.name = n; i.loaNo = l; }
-            else state.instructors.push({ id: Date.now(), name: n, loaNo: l, rating: 'B412' });
-            syncToCloud(); // NEW CODE: Sync edit/add instructor
+            
+            if (id) { 
+                const i = state.instructors.find(x => x.id === id); 
+                i.name = n; i.loaNo = l; i.signUrl = s; 
+            } else { 
+                state.instructors.push({ id: Date.now(), name: n, loaNo: l, rating: 'B412', signUrl: s }); 
+            }
+            syncToCloud(); // NEW CODE: Sync edit/add instructor dengan Sign URL
             closeModal(); renderInstructorData();
         }
 
@@ -917,6 +962,10 @@
             const instName = instParts[0].trim();
             const instLOA = instParts[2] ? instParts[2].replace(')','').trim() : (instParts[1] ? instParts[1].replace(')','').trim() : '-');
 
+            // NEW CODE: Ambil data tanda tangan (Sign URL) milik instruktur berdasarkan namanya
+            const instObj = state.instructors.find(x => x.name === instName);
+            const instSignUrl = instObj ? instObj.signUrl : '';
+
             const set = state.questionSets.find(q => q.title === a.examTitle);
             const questions = set && set.questions.length > 0 ? set.questions : Array(10).fill({id: 0, text: 'Sample Question Text...', options: {A: 'Option A', B: 'Option B', C: 'Correct Option', D: 'Option D'}, answer: 'C'});
             
@@ -979,12 +1028,17 @@
                     <div class="print-section-title">ANSWER SUMMARY</div>
                     <div>${answersHtml}</div>
 
+                    <!-- NEW CODE: Menampilkan Tanda Tangan dan Nama Terang -->
                     <div class="print-signatures">
                         <div class="print-sig-box">
+                            <div class="print-sig-img">${u.signUrl || ''}</div>
                             <div class="print-sig-line">${term} Signature</div>
+                            <div class="print-sig-name">${u.name}</div>
                         </div>
                         <div class="print-sig-box">
+                            <div class="print-sig-img">${instSignUrl || ''}</div>
                             <div class="print-sig-line">Examiner Signature</div>
+                            <div class="print-sig-name">${instName}</div>
                         </div>
                     </div>
                 </div>
