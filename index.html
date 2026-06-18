@@ -1031,14 +1031,16 @@
                     <!-- NEW CODE: Menampilkan Tanda Tangan dan Nama Terang -->
                     <div class="print-signatures">
                         <div class="print-sig-box">
+                            <div class="print-sig-title">${term} Signature</div>
                             <div class="print-sig-img">${u.signUrl || ''}</div>
-                            <div class="print-sig-line">${term} Signature</div>
                             <div class="print-sig-name">${u.name}</div>
+                            <div class="print-sig-detail">${u.license || '-'}</div>
                         </div>
                         <div class="print-sig-box">
+                            <div class="print-sig-title">Examiner Signature</div>
                             <div class="print-sig-img">${instSignUrl || ''}</div>
-                            <div class="print-sig-line">Examiner Signature</div>
                             <div class="print-sig-name">${instName}</div>
+                            <div class="print-sig-detail">${instLOA || '-'}</div>
                         </div>
                     </div>
                 </div>
