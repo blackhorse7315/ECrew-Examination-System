@@ -90,9 +90,15 @@
             .print-summary-item { margin-bottom: 15px; page-break-inside: avoid; }
             .print-summary-item.correct { color: green !important; }
             .print-summary-item.wrong { color: red !important; }
+            
+            /* PERBAIKAN: Format CSS lengkap untuk tanda tangan dengan Bold dan Underline */
             .print-signatures { margin-top: 50px; width: 100%; display: flex; justify-content: space-between; text-align: center; page-break-inside: avoid; }
-            .print-sig-box { width: 200px; }
-            .print-sig-line { border-top: 1px solid black; margin-top: 60px; padding-top: 5px; }
+            .print-sig-box { width: 250px; display: flex; flex-direction: column; align-items: center; }
+            .print-sig-title { font-size: 11pt; margin-bottom: 5px; }
+            .print-sig-img { height: 80px; width: 100%; display: flex; justify-content: center; align-items: center; margin-bottom: 5px; }
+            .print-sig-img img { max-height: 100%; max-width: 100%; object-fit: contain; }
+            .print-sig-name { font-weight: bold; font-size: 11pt; text-transform: uppercase; text-decoration: underline; margin-bottom: 2px; }
+            .print-sig-detail { font-size: 10pt; }
 
             /* Page Number Logic */
             #print-footer {
