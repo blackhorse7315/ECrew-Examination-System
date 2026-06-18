@@ -1046,10 +1046,24 @@
 
             document.getElementById('print-area').innerHTML = html;
             
-            const printLogo = document.querySelector('#print-area img');
-            if (printLogo) {
-                printLogo.onload = function() { window.print(); setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000); };
-                printLogo.onerror = function() { window.print(); setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000); };
+            // PERBAIKAN: Menunggu SEMUA gambar (Logo + Tanda Tangan) selesai dimuat sebelum print
+            const images = Array.from(document.querySelectorAll('#print-area img'));
+            if (images.length > 0) {
+                const promises = images.map(img => {
+                    return new Promise(resolve => {
+                        if (img.complete) {
+                            resolve();
+                        } else {
+                            img.onload = resolve;
+                            img.onerror = resolve; // Tetap lanjut meskipun ada gambar gagal dimuat/rusak
+                        }
+                    });
+                });
+                
+                Promise.all(promises).then(() => {
+                    window.print();
+                    setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000);
+                });
             } else {
                 window.print();
                 setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000);
