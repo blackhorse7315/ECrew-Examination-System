@@ -1008,7 +1008,12 @@
                         <h1>Transwisata Prima Aviation</h1>
                         <h2>FLIGHT CREW EXAMINATION RESULT</h2>
                         <h3>${a.examTitle}</h3>
-                        <div style="text-align: right; font-size: 10pt; margin-top: 10px;">Form No: ${state.formNo ? state.formNo.value : '-'}</div>
+                        
+                        <!-- PERBAIKAN: Menambahkan 'Online Examination Form' sejajar dengan 'Form No' -->
+                        <div style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 10pt; margin-top: 15px;">
+                            <div style="text-align: left; font-weight: bold; font-style: italic;">Online Examination Form</div>
+                            <div style="text-align: right;">Form No: ${state.formNo ? state.formNo.value : '-'}</div>
+                        </div>
                     </div>
 
                     <div class="print-section-title">${term.toUpperCase()} INFORMATION</div>
