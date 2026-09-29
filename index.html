@@ -9,6 +9,29 @@
     <link rel="apple-touch-icon" href="https://lh3.googleusercontent.com/d/1-Ix2jV27kfEwv3lycXA_4FGqpKS6TqtD">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Script Instalasi PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            const swCode = `
+                self.addEventListener('install', (e) => { self.skipWaiting(); });
+                self.addEventListener('activate', (e) => { e.waitUntil(clients.claim()); });
+                self.addEventListener('fetch', (e) => { });
+            `;
+            const blob = new Blob([swCode], {type: 'application/javascript'});
+            const swUrl = URL.createObjectURL(blob);
+            navigator.serviceWorker.register(swUrl).then(() => console.log('PWA Ready')).catch(err => console.log('PWA Failed', err));
+        }
+
+        const manifestCode = {
+            "name": "E CREW TWA", "short_name": "E CREW", "start_url": ".", "display": "standalone", "background_color": "#ffffff", "theme_color": "#2563eb", "icons": [{"src": "https://lh3.googleusercontent.com/d/1-Ix2jV27kfEwv3lycXA_4FGqpKS6TqtD", "sizes": "512x512", "type": "image/png"}]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifestCode)], {type: 'application/json'});
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+        const link = document.createElement('link'); link.rel = 'manifest'; link.href = manifestUrl;
+        document.head.appendChild(link);
+    </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -110,9 +133,17 @@
                 if(window.loadDataFromCloud) window.loadDataFromCloud(); 
             } catch (error) {
                 console.error("Firebase Auth Error:", error);
-                document.getElementById('loading-screen').classList.add('hidden');
-                document.getElementById('app').classList.remove('opacity-0');
-                alert("Gagal koneksi ke server. Pastikan Anda memiliki internet dan Anonymous Auth aktif di Firebase.");
+                const errStr = error.toString();
+                let msg = "Gagal koneksi ke server.";
+                if(errStr.includes('configuration-not-found')) msg = "Gagal: Anonymous Sign-in BELUM DIAKTIFKAN di Firebase Console Anda!";
+                
+                document.getElementById('loading-screen').innerHTML = `
+                    <div class="text-center p-8 max-w-sm">
+                        <div class="text-red-500 text-5xl mb-4">⚠️</div>
+                        <h2 class="text-xl font-bold text-slate-800 mb-2">Connection Error</h2>
+                        <p class="text-xs text-slate-500 mb-4">${msg}</p>
+                        <button onclick="location.reload()" class="px-6 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase">Coba Lagi</button>
+                    </div>`;
             }
         }
         initFirebase();
@@ -131,6 +162,8 @@
     <div id="app" class="opacity-0 transition-opacity duration-500">
         <!-- Auth Section -->
         <div id="auth-section" class="min-h-screen flex items-center justify-center p-4 gradient-bg relative">
+            <button id="btn-install-login" onclick="installPWA()" class="absolute top-4 right-4 px-4 py-2 bg-white/80 backdrop-blur border border-blue-100 text-blue-700 text-[10px] font-black rounded-xl uppercase tracking-widest shadow-lg shadow-blue-500/10 hover:bg-blue-50 transition-colors z-50 flex items-center gap-2">⬇ Install App</button>
+
             <div class="max-w-md w-full glass-morphism p-8 rounded-3xl shadow-2xl page-fade">
                 <div class="text-center mb-8">
                     <div class="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
@@ -147,25 +180,25 @@
                 </div>
 
                 <form id="form-login" class="space-y-4" onsubmit="handleLogin(event)">
-                    <input type="text" id="login-id" placeholder="Username / ID" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all text-sm font-medium">
+                    <input type="text" id="login-id" placeholder="Username / Email" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all text-sm font-medium">
                     <input type="password" id="login-pass" placeholder="Password" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all text-sm font-medium">
                     <button type="submit" class="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-widest shadow-lg shadow-blue-200 transition-all mt-2 text-sm">Sign In</button>
                 </form>
 
                 <form id="form-register" class="space-y-4 hidden" onsubmit="handleRegister(event)">
-                    <input type="text" id="reg-name" placeholder="Full Name" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
-                    <input type="text" id="reg-id" placeholder="Username (for login)" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
-                    <input type="password" id="reg-pass" placeholder="Password" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
+                    <input type="text" id="reg-name" placeholder="Full Name" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm">
+                    <input type="text" id="reg-id" placeholder="Email / Username (for login)" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm">
+                    <input type="password" id="reg-pass" placeholder="Password" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm">
                     <div class="grid grid-cols-2 gap-3">
-                        <select id="reg-rank" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
+                        <select id="reg-rank" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold text-slate-600">
                             <option>CCP</option><option>FI</option><option>GI</option><option>Capt</option><option>FO</option>
                         </select>
-                        <select id="reg-rating" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
+                        <select id="reg-rating" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold text-slate-600">
                             <option>Gulfstream IV-SP (G-IV)</option><option>Beechcraft King Air 350 (BE-300)</option><option>Casa 212 (CA-212)</option><option>Agusta 109S Grand (AW-109)</option><option>Bell 412 EP (B412)</option>
                         </select>
                     </div>
-                    <input type="text" id="reg-license" placeholder="License (e.g. ATPL/ 20-0007)" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none">
-                    <button type="submit" class="w-full py-4 bg-green-600 text-white rounded-xl font-bold uppercase tracking-widest">Create Account</button>
+                    <input type="text" id="reg-license" placeholder="License (e.g. ATPL/ 20-0007)" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm">
+                    <button type="submit" class="w-full py-4 bg-green-600 text-white rounded-xl font-black uppercase tracking-widest shadow-lg shadow-green-200 text-sm mt-2">Create Account</button>
                 </form>
             </div>
         </div>
@@ -184,8 +217,7 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-2 md:gap-4">
-                        <!-- Tombol Install PWA di Dashboard Utama -->
-                        <button id="btn-install-main" onclick="installPWA()" class="hidden px-3 py-1.5 bg-blue-50 border border-blue-100 text-blue-700 text-[9px] font-black rounded-lg uppercase tracking-widest shadow-sm hover:bg-blue-100 transition-colors">⬇ Install</button>
+                        <button id="btn-install-main" onclick="installPWA()" class="px-3 py-1.5 bg-blue-50 border border-blue-100 text-blue-700 text-[9px] font-black rounded-lg uppercase tracking-widest shadow-sm hover:bg-blue-100 transition-colors">⬇ Install</button>
                         
                         <div class="text-right hidden xs:block">
                             <p id="user-display-name" class="text-xs font-bold text-slate-900">User</p>
@@ -199,11 +231,11 @@
 
                 <div id="admin-tabs" class="bg-white border-t border-slate-50 hidden overflow-x-auto no-scrollbar shadow-inner">
                     <div class="max-w-7xl mx-auto flex">
-                        <button onclick="renderTabContent('users')" id="nt-users" class="px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors border-blue-600 text-blue-600">Users</button>
-                        <button onclick="renderTabContent('instructor')" id="nt-instructor" class="px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors border-transparent text-slate-400 hover:text-slate-600">Instructor</button>
-                        <button onclick="renderTabContent('questions')" id="nt-questions" class="px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors border-transparent text-slate-400 hover:text-slate-600">Exam Banks</button>
-                        <button onclick="renderTabContent('assign')" id="nt-assign" class="px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors border-transparent text-slate-400 hover:text-slate-600">Assign Tasks</button>
-                        <button onclick="renderTabContent('history')" id="nt-history" class="px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-colors border-transparent text-slate-400 hover:text-slate-600">History</button>
+                        <button onclick="renderTabContent('users')" id="nt-users" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors border-blue-600 text-blue-600 whitespace-nowrap">Users</button>
+                        <button onclick="renderTabContent('instructor')" id="nt-instructor" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors border-transparent text-slate-400 hover:text-slate-600 whitespace-nowrap">Instructor</button>
+                        <button onclick="renderTabContent('questions')" id="nt-questions" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors border-transparent text-slate-400 hover:text-slate-600 whitespace-nowrap">Exam Banks</button>
+                        <button onclick="renderTabContent('assign')" id="nt-assign" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors border-transparent text-slate-400 hover:text-slate-600 whitespace-nowrap">Assign Tasks</button>
+                        <button onclick="renderTabContent('history')" id="nt-history" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors border-transparent text-slate-400 hover:text-slate-600 whitespace-nowrap">History</button>
                     </div>
                 </div>
             </header>
@@ -225,7 +257,7 @@
 
     <!-- Main Logic -->
     <script>
-        // Global Anti-Stuck Failsafe (12 seconds)
+        // Global Anti-Stuck Failsafe (10 seconds)
         setTimeout(() => {
             const loader = document.getElementById('loading-screen');
             if(!loader.classList.contains('hidden')) {
@@ -233,7 +265,7 @@
                 document.getElementById('app').classList.remove('opacity-0');
                 console.warn("Failsafe: Loading screen removed due to timeout.");
             }
-        }, 12000);
+        }, 10000);
 
         let state = {
             users: [], instructors: [], assignments: [], questionSets: [],
@@ -314,16 +346,16 @@
 
             const u = state.users.find(x => x.username === id && x.password === pass);
             if (u) { state.currentUser = u; state.isAdmin = false; loginSuccess(); return; }
-            alert('Username atau Password salah!');
+            alert('Username/Email atau Password salah!');
         }
 
         function handleRegister(e) {
             e.preventDefault();
             const user = document.getElementById('reg-id').value;
-            if (state.users.some(x => x.username === user) || state.instructors.some(x => x.username === user) || user === state.admin.u || user === 'superadmin') return alert('Username sudah digunakan!');
+            if (state.users.some(x => x.username === user) || state.instructors.some(x => x.username === user) || user === state.admin.u || user === 'superadmin') return alert('Email / Username sudah digunakan!');
             const newUser = { id: Date.now(), name: document.getElementById('reg-name').value, username: user, password: document.getElementById('reg-pass').value, rank: document.getElementById('reg-rank').value, rating: document.getElementById('reg-rating').value, license: document.getElementById('reg-license').value, signUrl: '' };
             state.users.push(newUser); syncToCloud();
-            alert('Registrasi berhasil! Silakan login.'); switchAuth('login'); e.target.reset();
+            alert('Registrasi berhasil! Silakan Sign In.'); switchAuth('login'); e.target.reset();
         }
 
         function loginSuccess() {
@@ -382,17 +414,15 @@
         function saveSuperAdmin() {
             state.formNo.value = document.getElementById('sa-form-no').value; state.admin.u = document.getElementById('sa-admin-u').value;
             state.admin.p = document.getElementById('sa-admin-p').value; state.superAdmin.code = document.getElementById('sa-pin').value;
-            syncToCloud(); alert('Konfigurasi disimpan.');
+            syncToCloud(); alert('Konfigurasi berhasil disimpan.');
         }
         
         function promptVerify(cb) {
-            // PERBAIKAN: Hapus jalur khusus instruktur. 
-            // Sekarang hanya Super Admin yang bebas PIN. Admin dan Instruktur wajib input PIN.
+            // Semua wajib masuk PIN kecuali login sebagai 'superadmin' asli
             if(state.currentUser && state.currentUser.role === 'superadmin') { 
                 cb(); 
                 return; 
             }
-            
             const code = prompt("Masukkan PIN Super Admin untuk melanjutkan (Otorisasi Keamanan):");
             if (code === state.superAdmin.code) { 
                 cb(); 
@@ -421,7 +451,8 @@
         // --- RECORD OF REVISION HELPER ---
         function logRevision(set, action, detail) {
             if (!set.revisions) set.revisions = [];
-            const now = new Date(); const timeStr = now.toLocaleDateString('id-ID') + ' ' + now.toLocaleTimeString('id-ID');
+            const now = new Date(); 
+            const timeStr = now.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
             let userStr = 'System';
             if (state.currentUser) {
                 if(state.currentUser.role === 'superadmin') userStr = 'Super Admin';
@@ -430,16 +461,27 @@
                 else userStr = state.currentUser.name;
             }
             set.revisions.unshift({ time: timeStr, user: userStr, action: action, detail: detail });
-            if (set.revisions.length > 50) set.revisions.pop();
+            if (set.revisions.length > 50) set.revisions.pop(); // Keep last 50 logs
         }
 
         function viewRevisionHistory(setId) {
             const set = state.questionSets.find(s => s.id === setId);
-            document.getElementById('modal-title').innerText = "Revision Log: " + set.title;
-            let html = `<div class="space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar">`;
-            if (!set.revisions || set.revisions.length === 0) { html += `<div class="p-6 text-center text-slate-400 font-bold text-sm bg-slate-50 rounded-2xl border border-dashed border-slate-200">Belum ada riwayat perubahan.</div>`; } 
-            else {
-                set.revisions.forEach(rev => { html += `<div class="p-4 bg-white border border-slate-100 rounded-xl shadow-sm"><div class="flex justify-between items-start mb-2"><span class="text-[9px] font-black uppercase tracking-widest px-2 py-1 bg-slate-100 text-slate-500 rounded">${rev.action}</span><span class="text-[10px] font-bold text-slate-400">${rev.time}</span></div><p class="text-sm font-bold text-slate-800 mb-1">${rev.user}</p><p class="text-xs text-slate-500">${rev.detail}</p></div>`; });
+            document.getElementById('modal-title').innerText = "Revision Log";
+            let html = `<div class="space-y-3 max-h-[60vh] overflow-y-auto no-scrollbar">`;
+            if (!set.revisions || set.revisions.length === 0) { 
+                html += `<div class="p-6 text-center text-slate-400 font-bold text-sm bg-slate-50 rounded-2xl border border-dashed border-slate-200">Belum ada riwayat perubahan.</div>`; 
+            } else {
+                set.revisions.forEach(rev => { 
+                    html += `
+                    <div class="p-4 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-blue-200 transition-colors">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-[9px] font-black uppercase tracking-widest px-2 py-1 bg-slate-100 text-slate-600 rounded">${rev.action}</span>
+                            <span class="text-[10px] font-bold text-slate-400">${rev.time}</span>
+                        </div>
+                        <p class="text-xs font-black text-slate-800 mb-1">${rev.user}</p>
+                        <p class="text-xs text-slate-500 font-medium">${rev.detail}</p>
+                    </div>`; 
+                });
             }
             document.getElementById('modal-body').innerHTML = html + `</div>`;
             document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-6 py-2.5 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-colors w-full">Close</button>`;
@@ -448,9 +490,34 @@
 
         // --- USERS ---
         function renderUserData() {
-            let html = `<div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-bold">User Database</h2></div><button onclick="openAddUser()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase shadow-lg shadow-blue-100 tracking-widest">+ Add User</button></div><div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100"><table class="w-full text-left border-collapse"><thead class="bg-slate-50 border-b"><tr><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Name</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Email</th><th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th></tr></thead><tbody class="divide-y divide-slate-50">`;
-            state.users.forEach(u => { html += `<tr class="hover:bg-slate-50/50"><td class="px-6 py-4 font-bold text-slate-800 text-sm">${u.name} <span class="ml-2 px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] rounded-full uppercase">${u.rank}</span></td><td class="px-6 py-4 text-xs text-slate-500">${u.username}</td><td class="px-6 py-4 text-right"><button onclick="viewUserDetail(${u.id})" class="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Detail</button></td></tr>`; });
-            document.getElementById('dynamic-content').innerHTML = html + `</tbody></table></div>`;
+            let html = `
+            <div class="flex justify-between items-center mb-6">
+                <div><h2 class="text-xl font-bold">User Database</h2></div>
+                <button onclick="openAddUser()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase shadow-lg shadow-blue-100 tracking-widest">+ Add User</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
+            
+            if (state.users.length === 0) {
+                html += `<div class="col-span-full p-12 text-center text-slate-400 font-bold bg-white rounded-3xl shadow-sm border border-slate-100">Belum ada user.</div>`;
+            } else {
+                state.users.forEach(u => { 
+                    html += `
+                    <div onclick="viewUserDetail(${u.id})" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <h4 class="font-bold text-slate-800 text-base leading-tight pr-2">${u.name}</h4>
+                                <span class="px-2 py-1 bg-blue-50 text-blue-600 text-[9px] font-black rounded-lg uppercase tracking-widest">${u.rank}</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 font-medium truncate mb-4">${u.username}</p>
+                        </div>
+                        <div class="pt-3 border-t border-slate-50 flex justify-between items-center">
+                            <span class="text-[10px] text-slate-500 font-bold">LIC: ${u.license || '-'}</span>
+                            <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Detail &rarr;</span>
+                        </div>
+                    </div>`; 
+                });
+            }
+            document.getElementById('dynamic-content').innerHTML = html + `</div>`;
         }
 
         function openAddUser() {
@@ -458,20 +525,20 @@
             document.getElementById('modal-body').innerHTML = `
                 <div class="space-y-4">
                     <input type="text" id="au-name" class="w-full p-3 border rounded-xl text-sm" placeholder="Full Name" required>
-                    <input type="text" id="au-id" class="w-full p-3 border rounded-xl text-sm" placeholder="Username / Email" required>
+                    <input type="text" id="au-id" class="w-full p-3 border rounded-xl text-sm" placeholder="Email / Username" required>
                     <input type="text" id="au-pass" class="w-full p-3 border rounded-xl text-sm" placeholder="Password" required>
-                    <div class="grid grid-cols-2 gap-3"><select id="au-rank" class="p-3 border rounded-xl text-sm">${state.lookups.ranks.map(r=>`<option value="${r}">${r}</option>`).join('')}</select><select id="au-rating" class="p-3 border rounded-xl text-sm">${state.lookups.ratings.map(r=>`<option value="${r}">${r}</option>`).join('')}</select></div>
+                    <div class="grid grid-cols-2 gap-3"><select id="au-rank" class="p-3 border rounded-xl text-sm font-bold text-slate-600">${state.lookups.ranks.map(r=>`<option value="${r}">${r}</option>`).join('')}</select><select id="au-rating" class="p-3 border rounded-xl text-sm font-bold text-slate-600">${state.lookups.ratings.map(r=>`<option value="${r}">${r}</option>`).join('')}</select></div>
                     <input type="text" id="au-license" class="w-full p-3 border rounded-xl text-sm" placeholder="License No.">
-                    <div class="pt-2 border-t border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Signature Preview</p><div id="add-sign-preview-box" class="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl mb-3 flex items-center justify-center p-2 overflow-hidden"><span class="text-[10px] text-slate-400 italic">No signature yet</span></div><textarea id="au-sign" oninput="updateSignPreview(this.value, 'add-sign-preview-box')" rows="2" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono"></textarea></div>
+                    <div class="pt-2 border-t border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Signature Code (Image Tag)</p><div id="add-sign-preview-box" class="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl mb-3 flex items-center justify-center p-2 overflow-hidden"><span class="text-[10px] text-slate-400 italic">No signature yet</span></div><textarea id="au-sign" oninput="updateSignPreview(this.value, 'add-sign-preview-box')" rows="2" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono"></textarea></div>
                 </div>`;
-            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveNewUser()" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase">Save</button>`;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveNewUser()" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Save User</button>`;
             document.getElementById('modal-container').classList.remove('hidden');
         }
 
         function saveNewUser() {
             const user = document.getElementById('au-id').value, name = document.getElementById('au-name').value, pass = document.getElementById('au-pass').value;
-            if (!name || !user || !pass) return alert('Lengkapi data!');
-            if (state.users.some(x => x.username === user) || state.instructors.some(x => x.username === user) || user === state.admin.u) return alert('Username sudah dipakai!');
+            if (!name || !user || !pass) return alert('Lengkapi data Nama, Username/Email, dan Password!');
+            if (state.users.some(x => x.username === user) || state.instructors.some(x => x.username === user) || user === state.admin.u) return alert('Email/Username sudah dipakai!');
             state.users.push({ id: Date.now(), name: name, username: user, password: pass, rank: document.getElementById('au-rank').value, rating: document.getElementById('au-rating').value, license: document.getElementById('au-license').value, signUrl: document.getElementById('au-sign').value });
             syncToCloud(); closeModal(); renderUserData();
         }
@@ -479,8 +546,8 @@
         function viewUserDetail(uid) {
             const u = state.users.find(x => x.id === uid);
             document.getElementById('modal-title').innerText = `Profile: ${u.name}`;
-            document.getElementById('modal-body').innerHTML = `<div class="grid grid-cols-2 gap-4"><div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Email</p><p class="text-sm font-bold text-slate-800">${u.username}</p></div><div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Rank</p><p class="text-sm font-bold text-blue-600">${u.rank}</p></div><div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">License</p><p class="text-sm font-bold text-slate-800">${u.license}</p></div><div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Password</p><p class="text-sm font-bold text-slate-800">${u.password}</p></div><div class="p-4 bg-white border border-slate-100 rounded-2xl col-span-2 overflow-hidden"><p class="text-[9px] font-black text-slate-400 uppercase mb-3">Signature</p><div class="h-20 border border-dashed border-slate-200 rounded-xl flex items-center justify-center p-2 bg-slate-50">${u.signUrl || '<span class="text-xs text-slate-400">None</span>'}</div></div></div>`;
-            document.getElementById('modal-footer').innerHTML = `<button onclick="deleteUser(${u.id})" class="mr-auto px-4 py-2 text-xs font-bold text-red-500 uppercase">Delete User</button><button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Close</button><button onclick="openEditUser(${u.id})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase">Edit</button>`;
+            document.getElementById('modal-body').innerHTML = `<div class="grid grid-cols-2 gap-4"><div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Email/Username</p><p class="text-sm font-bold text-slate-800 break-all">${u.username}</p></div><div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Rank</p><p class="text-sm font-bold text-blue-600">${u.rank}</p></div><div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">License</p><p class="text-sm font-bold text-slate-800">${u.license || '-'}</p></div><div class="p-4 bg-white border border-slate-100 rounded-2xl"><p class="text-[9px] font-black text-slate-400 uppercase">Password</p><p class="text-sm font-bold text-slate-800">${u.password}</p></div><div class="p-4 bg-white border border-slate-100 rounded-2xl col-span-2 overflow-hidden"><p class="text-[9px] font-black text-slate-400 uppercase mb-3">Signature</p><div class="h-20 border border-dashed border-slate-200 rounded-xl flex items-center justify-center p-2 bg-slate-50">${u.signUrl || '<span class="text-xs text-slate-400">None</span>'}</div></div></div>`;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="deleteUser(${u.id})" class="mr-auto px-4 py-2 text-xs font-bold text-red-500 uppercase tracking-widest hover:bg-red-50 rounded-lg">Delete</button><button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Close</button><button onclick="openEditUser(${u.id})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-200">Edit</button>`;
             document.getElementById('modal-container').classList.remove('hidden');
         }
 
@@ -488,14 +555,14 @@
             const u = state.users.find(x => x.id === uid);
             document.getElementById('modal-body').innerHTML = `
                 <div class="space-y-4">
-                    <input type="text" id="eu-name" value="${u.name}" class="w-full p-3 border rounded-xl text-sm">
-                    <input type="text" id="eu-pass" value="${u.password}" class="w-full p-3 border rounded-xl text-sm">
-                    <div class="grid grid-cols-2 gap-3"><select id="eu-rank" class="p-3 border rounded-xl text-sm">${state.lookups.ranks.map(r=>`<option value="${r}" ${u.rank===r?'selected':''}>${r}</option>`).join('')}</select><select id="eu-rating" class="p-3 border rounded-xl text-sm">${state.lookups.ratings.map(r=>`<option value="${r}" ${u.rating===r?'selected':''}>${r}</option>`).join('')}</select></div>
-                    <input type="text" id="eu-license" value="${u.license}" class="w-full p-3 border rounded-xl text-sm">
-                    <div class="pt-2 border-t border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Signature Preview</p><div id="sign-preview-box" class="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl mb-3 flex items-center justify-center p-2 overflow-hidden"></div><textarea id="eu-sign" oninput="updateSignPreview(this.value, 'sign-preview-box')" rows="2" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono"></textarea></div>
+                    <input type="text" id="eu-name" value="${u.name}" class="w-full p-3 border rounded-xl text-sm" placeholder="Full Name">
+                    <input type="text" id="eu-pass" value="${u.password}" class="w-full p-3 border rounded-xl text-sm" placeholder="Password">
+                    <div class="grid grid-cols-2 gap-3"><select id="eu-rank" class="p-3 border rounded-xl text-sm font-bold text-slate-600">${state.lookups.ranks.map(r=>`<option value="${r}" ${u.rank===r?'selected':''}>${r}</option>`).join('')}</select><select id="eu-rating" class="p-3 border rounded-xl text-sm font-bold text-slate-600">${state.lookups.ratings.map(r=>`<option value="${r}" ${u.rating===r?'selected':''}>${r}</option>`).join('')}</select></div>
+                    <input type="text" id="eu-license" value="${u.license || ''}" class="w-full p-3 border rounded-xl text-sm" placeholder="License No.">
+                    <div class="pt-2 border-t border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Signature Code</p><div id="sign-preview-box" class="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl mb-3 flex items-center justify-center p-2 overflow-hidden"></div><textarea id="eu-sign" oninput="updateSignPreview(this.value, 'sign-preview-box')" rows="2" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono"></textarea></div>
                 </div>`;
             document.getElementById('eu-sign').value = u.signUrl || ''; updateSignPreview(u.signUrl || '', 'sign-preview-box');
-            document.getElementById('modal-footer').innerHTML = `<button onclick="viewUserDetail(${uid})" class="px-4 py-2 text-xs font-bold text-slate-400">Back</button><button onclick="saveUserEdit(${uid})" class="px-8 py-2.5 bg-green-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Save</button>`;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="viewUserDetail(${uid})" class="px-4 py-2 text-xs font-bold text-slate-400">Back</button><button onclick="saveUserEdit(${uid})" class="px-8 py-2.5 bg-green-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-green-200">Save</button>`;
         }
 
         function saveUserEdit(uid) {
@@ -503,12 +570,12 @@
             u.name = document.getElementById('eu-name').value; u.password = document.getElementById('eu-pass').value; u.rank = document.getElementById('eu-rank').value; u.rating = document.getElementById('eu-rating').value; u.license = document.getElementById('eu-license').value; u.signUrl = document.getElementById('eu-sign').value; 
             syncToCloud(); viewUserDetail(uid); renderUserData();
         }
-        function deleteUser(uid) { if(confirm('Hapus user ini?')) { state.users = state.users.filter(x => x.id !== uid); syncToCloud(); closeModal(); renderUserData(); } }
+        function deleteUser(uid) { if(confirm('Hapus kandidat ini secara permanen?')) { state.users = state.users.filter(x => x.id !== uid); syncToCloud(); closeModal(); renderUserData(); } }
 
         // --- INSTRUCTORS ---
         function renderInstructorData() {
             let html = `<div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-bold">Instructors</h2></div><button onclick="openInstructorModal('add')" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase shadow-lg tracking-widest">+ Add</button></div><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
-            state.instructors.forEach(i => { html += `<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100"><h4 class="font-bold text-slate-800 text-sm mb-1">${i.name}</h4><p class="text-[10px] text-slate-400 uppercase font-black mb-2">LOA: ${i.loaNo}</p><p class="text-[10px] text-blue-500 font-bold mb-4">U: ${i.username || '-'}</p><div class="flex gap-2"><button onclick="openInstructorModal('edit', ${i.id})" class="flex-1 py-2 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest">Edit</button><button onclick="deleteInstructor(${i.id})" class="py-2 px-3 bg-red-50 text-red-500 rounded-lg">&times;</button></div></div>`; });
+            state.instructors.forEach(i => { html += `<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100"><h4 class="font-bold text-slate-800 text-sm mb-1">${i.name}</h4><p class="text-[10px] text-slate-400 uppercase font-black mb-2">LOA: ${i.loaNo || '-'}</p><p class="text-[10px] text-blue-500 font-bold mb-4">U: ${i.username || '-'}</p><div class="flex gap-2"><button onclick="openInstructorModal('edit', ${i.id})" class="flex-1 py-2 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-100">Edit</button><button onclick="deleteInstructor(${i.id})" class="py-2 px-3 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg">&times;</button></div></div>`; });
             document.getElementById('dynamic-content').innerHTML = html + `</div>`;
         }
 
@@ -518,12 +585,12 @@
             document.getElementById('modal-body').innerHTML = `
                 <div class="space-y-4">
                     <input type="text" id="in-name" value="${i.name}" class="w-full p-3 border rounded-xl text-sm" placeholder="Full Name">
-                    <input type="text" id="in-loa" value="${i.loaNo}" class="w-full p-3 border rounded-xl text-sm" placeholder="LOA No.">
-                    <div class="pt-2 border-t border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Login Credentials</p><input type="text" id="in-user" value="${i.username || ''}" class="w-full p-3 border rounded-xl text-sm mb-2" placeholder="Username (Instruktur)"><input type="password" id="in-pass" value="${i.password || ''}" class="w-full p-3 border rounded-xl text-sm" placeholder="Password"></div>
-                    <div class="pt-2 border-t border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Signature Preview</p><div id="inst-sign-preview-box" class="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl mb-3 flex items-center justify-center p-2 overflow-hidden"></div><textarea id="in-sign" oninput="updateSignPreview(this.value, 'inst-sign-preview-box')" rows="2" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono"></textarea></div>
+                    <input type="text" id="in-loa" value="${i.loaNo || ''}" class="w-full p-3 border rounded-xl text-sm" placeholder="LOA No.">
+                    <div class="pt-2 border-t border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Login Credentials</p><input type="text" id="in-user" value="${i.username || ''}" class="w-full p-3 border rounded-xl text-sm mb-2" placeholder="Username (Instruktur)"><input type="text" id="in-pass" value="${i.password || ''}" class="w-full p-3 border rounded-xl text-sm" placeholder="Password"></div>
+                    <div class="pt-2 border-t border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Signature Code</p><div id="inst-sign-preview-box" class="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl mb-3 flex items-center justify-center p-2 overflow-hidden"></div><textarea id="in-sign" oninput="updateSignPreview(this.value, 'inst-sign-preview-box')" rows="2" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono"></textarea></div>
                 </div>`;
             document.getElementById('in-sign').value = i.signUrl || ''; updateSignPreview(i.signUrl || '', 'inst-sign-preview-box');
-            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveInstructor(${mode==='edit'?id:'null'})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase">Save</button>`;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveInstructor(${mode==='edit'?id:'null'})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Save</button>`;
             document.getElementById('modal-container').classList.remove('hidden');
         }
 
@@ -537,7 +604,7 @@
             else { state.instructors.push({ id: Date.now(), name: n, loaNo: l, rating: 'B412', signUrl: s, username: u, password: p }); }
             syncToCloud(); closeModal(); renderInstructorData();
         }
-        function deleteInstructor(id) { if(confirm('Hapus?')) { state.instructors = state.instructors.filter(x => x.id !== id); syncToCloud(); renderInstructorData(); } }
+        function deleteInstructor(id) { if(confirm('Hapus instruktur?')) { state.instructors = state.instructors.filter(x => x.id !== id); syncToCloud(); renderInstructorData(); } }
 
         // --- EXAM BANKS ---
         function renderQuestionData() {
@@ -554,16 +621,16 @@
                 document.getElementById('modal-title').innerText = "Create Exam Set";
                 document.getElementById('modal-body').innerHTML = `
                     <div class="space-y-4">
-                        <select id="cs-cat" onchange="toggleSetOptions()" class="w-full p-4 border rounded-xl text-sm font-bold text-slate-700 outline-none"><option value="Type Rating">Type Rating Exam</option><option value="Mandatory Training">Mandatory Training</option></select>
-                        <input type="text" id="cs-title" class="w-full p-4 border rounded-xl text-sm" placeholder="Set Title (e.g. Recurrent...)">
-                        <div id="cs-t-opt" class="grid grid-cols-2 gap-3"><select id="cs-rating" class="p-3 border rounded-xl text-sm">${state.lookups.ratings.map(r=>`<option value="${r}">${r}</option>`).join('')}</select><select id="cs-model" class="p-3 border rounded-xl text-sm"><option value="Model A">Model A</option><option value="Model B">Model B</option><option value="Model C">Model C</option></select></div>
-                        <div id="cs-m-opt" class="hidden"><input type="text" id="cs-mand-type" class="w-full p-3 border rounded-xl text-sm" placeholder="Training Type (e.g. CRM)"></div>
+                        <select id="cs-cat" onchange="toggleSetOptions()" class="w-full p-4 border rounded-xl text-sm font-bold text-slate-700 outline-none bg-slate-50"><option value="Type Rating">Type Rating Exam</option><option value="Mandatory Training">Mandatory Training</option></select>
+                        <input type="text" id="cs-title" class="w-full p-4 border rounded-xl text-sm" placeholder="Set Title (e.g. Recurrent Casa 212...)">
+                        <div id="cs-t-opt" class="grid grid-cols-2 gap-3"><select id="cs-rating" class="p-3 border rounded-xl text-sm font-bold text-slate-600">${state.lookups.ratings.map(r=>`<option value="${r}">${r}</option>`).join('')}</select><select id="cs-model" class="p-3 border rounded-xl text-sm font-bold text-slate-600"><option value="Model A">Model A</option><option value="Model B">Model B</option><option value="Model C">Model C</option></select></div>
+                        <div id="cs-m-opt" class="hidden"><input type="text" id="cs-mand-type" class="w-full p-3 border rounded-xl text-sm" placeholder="Training Type (e.g. CRM, DG)"></div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Exam Type</label><select id="cs-type" class="w-full p-3 border rounded-xl text-sm"><option value="Initial">Initial</option><option value="Recurrent">Recurrent</option><option value="Upgrade">Upgrade</option></select></div>
+                            <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Exam Type</label><select id="cs-type" class="w-full p-3 border rounded-xl text-sm font-bold text-slate-600"><option value="Initial">Initial</option><option value="Recurrent">Recurrent</option><option value="Upgrade">Upgrade</option></select></div>
                             <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Training Cycle</label><select id="cs-cycle" class="w-full p-3 border rounded-xl text-sm bg-purple-50 text-purple-700 font-bold outline-none border-purple-100"><option value="None">No Cycle (Default)</option><option value="Cycle 1">Cycle 1</option><option value="Cycle 2">Cycle 2</option><option value="Cycle 3">Cycle 3</option></select></div>
                         </div>
                     </div>`;
-                document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveSet()" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase">Create</button>`;
+                document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveSet()" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Create</button>`;
                 document.getElementById('modal-container').classList.remove('hidden');
             });
         }
@@ -576,7 +643,7 @@
             const cat = document.getElementById('cs-cat').value;
             const newSet = { id: Date.now(), category: cat, title: document.getElementById('cs-title').value, type: document.getElementById('cs-type').value, cycle: document.getElementById('cs-cycle').value, questions: [], revisions: [] };
             if (cat === 'Type Rating') { newSet.rating = document.getElementById('cs-rating').value; newSet.model = document.getElementById('cs-model').value; } else { newSet.mandatoryType = document.getElementById('cs-mand-type').value; }
-            state.questionSets.push(newSet); syncToCloud(); closeModal(); renderQuestionData();
+            state.questionSets.push(newSet); logRevision(newSet, 'CREATE SET', 'Created new exam bank.'); syncToCloud(); closeModal(); renderQuestionData();
         }
 
         function viewSetDetails(id) {
@@ -586,8 +653,8 @@
             let html = `
                 <div class="bg-white border-b border-slate-100 sticky top-16 z-40 shadow-sm"><div class="max-w-4xl mx-auto p-4 md:p-6 flex justify-between items-center flex-wrap gap-4">
                     <div class="flex items-center gap-4">
-                        <button onclick="renderTabContent('questions')" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 font-bold">&larr;</button>
-                        <div><h2 class="text-lg font-black text-slate-800 leading-tight">${set.title}</h2><p class="text-[10px] uppercase font-bold text-blue-500 tracking-widest">${set.category} ${cycleBadge}</p></div>
+                        <button onclick="renderTabContent('questions')" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 font-bold hover:bg-slate-200">&larr;</button>
+                        <div><h2 class="text-lg font-black text-slate-800 leading-tight">${set.title}</h2><p class="text-[10px] uppercase font-bold text-blue-500 tracking-widest mt-1">${set.category} ${cycleBadge}</p></div>
                     </div>
                     <div class="flex gap-2">
                         <button onclick="viewRevisionHistory(${id})" class="px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md">LOG</button>
@@ -613,11 +680,11 @@
                 document.getElementById('modal-title').innerText = "Auto Parse Questions";
                 document.getElementById('modal-body').innerHTML = `
                     <div class="space-y-4">
-                        <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-800"><p class="font-bold mb-2 uppercase tracking-widest text-[10px]">Format Standard:</p><p class="font-mono">SECTION 1 - GENERAL<br>1. Pertanyaan...<br>A. Opsi<br>B. Opsi<br>C. Opsi<br>D. Opsi<br>Answer: A</p></div>
-                        <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Kategori Section (Default jika tidak ada SECTION tertulis)</label><input type="text" id="bulk-section" class="w-full p-3 border rounded-xl text-sm font-bold bg-slate-50" placeholder="e.g. General, Limitations"></div>
-                        <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Paste Data Soal</label><textarea id="bulk-text" rows="10" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono whitespace-pre-wrap outline-none" placeholder="Paste..."></textarea></div>
+                        <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-800"><p class="font-bold mb-2 uppercase tracking-widest text-[10px]">Format Standard:</p><p class="font-mono">SECTION 1 - GENERAL <span class="text-[9px] text-indigo-500 italic">(Otomatis Terdeteksi)</span><br>1. Pertanyaan...<br>A. Opsi<br>B. Opsi<br>C. Opsi<br>D. Opsi<br>Answer: A</p></div>
+                        <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Kategori Section (Hanya Default Jika Kosong)</label><input type="text" id="bulk-section" class="w-full p-3 border rounded-xl text-sm font-bold bg-slate-50" placeholder="e.g. General, Limitations"></div>
+                        <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Paste Data Soal</label><textarea id="bulk-text" rows="10" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono whitespace-pre-wrap outline-none focus:border-indigo-500" placeholder="Paste..."></textarea></div>
                     </div>`;
-                document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="processBulkImport(${setId})" class="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase">Parse & Save</button>`;
+                document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="processBulkImport(${setId})" class="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-indigo-200">Parse & Save</button>`;
                 document.getElementById('modal-container').classList.remove('hidden');
             });
         }
@@ -657,7 +724,8 @@
             }
             if (currentQ) { set.questions.push(currentQ); addedCount++; }
             set.questions.forEach((q, idx) => q.id = idx + 1);
-            if (addedCount > 0) logRevision(set, 'AUTO PARSE (BULK IMPORT)', `Imported ${addedCount} questions.`);
+            
+            if (addedCount > 0) logRevision(set, 'AUTO PARSE', `Imported ${addedCount} questions.`);
             
             syncToCloud(); closeModal(); viewSetDetails(setId);
             alert(`Berhasil menambahkan ${addedCount} soal baru.`);
@@ -680,7 +748,7 @@
                         </div>
                         <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Correct Answer</label><select id="eq-ans" class="w-full p-3 border rounded-xl text-sm font-bold bg-blue-50 text-blue-700 outline-none"><option value="A" ${q.answer==='A'?'selected':''}>Option A</option><option value="B" ${q.answer==='B'?'selected':''}>Option B</option><option value="C" ${q.answer==='C'?'selected':''}>Option C</option><option value="D" ${q.answer==='D'?'selected':''}>Option D</option></select></div>
                     </div>`;
-                document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="${qId ? `saveQuestionEdit(${setId}, ${qId})` : `saveQuestionAdd(${setId})`}" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase">Save</button>`;
+                document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="${qId ? `saveQuestionEdit(${setId}, ${qId})` : `saveQuestionAdd(${setId})`}" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Save</button>`;
                 document.getElementById('modal-container').classList.remove('hidden');
             });
         }
@@ -689,16 +757,16 @@
             const set = state.questionSets.find(s => s.id === setId);
             const nQ = { id: set.questions.length + 1, section: document.getElementById('eq-sect').value, text: document.getElementById('eq-text').value, options: { A: document.getElementById('eq-a').value, B: document.getElementById('eq-b').value, C: document.getElementById('eq-c').value, D: document.getElementById('eq-d').value }, answer: document.getElementById('eq-ans').value };
             set.questions.push(nQ); logRevision(set, 'ADD QUESTION', `Added Q${nQ.id}`);
-            syncToCloud(); alert('Pertanyaan ditambahkan!'); closeModal(); viewSetDetails(setId);
+            syncToCloud(); closeModal(); viewSetDetails(setId);
         }
 
         function saveQuestionEdit(setId, qId) {
             const set = state.questionSets.find(s => s.id === setId), q = set.questions.find(item => item.id === qId);
             q.section = document.getElementById('eq-sect').value; q.text = document.getElementById('eq-text').value; q.options = { A: document.getElementById('eq-a').value, B: document.getElementById('eq-b').value, C: document.getElementById('eq-c').value, D: document.getElementById('eq-d').value }; q.answer = document.getElementById('eq-ans').value;
             logRevision(set, 'EDIT QUESTION', `Edited Q${qId}`);
-            syncToCloud(); alert('Pertanyaan diperbarui!'); closeModal(); viewSetDetails(setId);
+            syncToCloud(); alert('Pertanyaan berhasil diperbarui!'); closeModal(); viewSetDetails(setId);
         }
-        function removeQuestion(setId, qId) { promptVerify(() => { if (confirm('Delete?')) { const set = state.questionSets.find(s => s.id === setId); set.questions = set.questions.filter(q => q.id !== qId); set.questions.forEach((q, i) => q.id = i + 1); logRevision(set, 'DELETE QUESTION', `Deleted Q${qId}`); syncToCloud(); viewSetDetails(setId); } }); }
+        function removeQuestion(setId, qId) { promptVerify(() => { if (confirm('Delete?')) { const set = state.questionSets.find(s => s.id === setId); set.questions = set.questions.filter(q => q.id !== qId); set.questions.forEach((q, i) => q.id = i + 1); logRevision(set, 'DEL QUESTION', `Deleted Q${qId}`); syncToCloud(); viewSetDetails(setId); } }); }
         function deleteAllQuestions(setId) { promptVerify(() => { if (confirm('Purge all?')) { const set = state.questionSets.find(s => s.id === setId); set.questions = []; logRevision(set, 'PURGE ALL', `Deleted all questions.`); syncToCloud(); viewSetDetails(setId); } }); }
         function deleteSet(setId) { promptVerify(() => { if (confirm('Delete entire set?')) { state.questionSets = state.questionSets.filter(s => s.id !== setId); syncToCloud(); renderTabContent(state.activeTab); } }); }
 
@@ -707,7 +775,7 @@
             let html = `<div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-bold">Assignments</h2></div><button onclick="openAssignModal()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase shadow-lg tracking-widest">New Assignment</button></div><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">`;
             state.assignments.forEach(a => {
                 const isC = a.status === 'COMPLETED';
-                html += `<div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 relative group"><div class="flex justify-between items-start mb-4"><span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${isC?'bg-green-100 text-green-700':a.status==='IN PROGRESS'?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700'}">${a.status}</span><button onclick="deleteAssign(${a.id})" class="text-slate-300 hover:text-red-500">&times;</button></div><h4 class="text-lg font-black text-slate-900 leading-tight">${a.userName}</h4><p class="text-xs font-bold text-blue-600 mb-4 truncate">${a.examTitle}</p><div class="space-y-1 text-[11px] text-slate-500 pt-4 border-t border-slate-50"><p>📅 Exam: <b>${formatDisplayDate(a.examDate)}</b></p><p>⏰ Time: <b>${a.examTime || '-'}</b> &nbsp; ⏳ Duration: <b>${a.duration || '-'}</b></p><p class="italic text-slate-700 font-bold">👨‍✈️ ${a.instructor}</p></div></div>`;
+                html += `<div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 relative group"><div class="flex justify-between items-start mb-4"><span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${isC?'bg-green-100 text-green-700':a.status==='IN PROGRESS'?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700'}">${a.status}</span><button onclick="deleteAssign(${a.id})" class="text-slate-300 hover:text-red-500">&times;</button></div><h4 class="text-lg font-black text-slate-900 leading-tight">${a.userName}</h4><p class="text-xs font-bold text-blue-600 mb-4 truncate" title="${a.examTitle}">${a.examTitle}</p><div class="space-y-1 text-[11px] text-slate-500 pt-4 border-t border-slate-50"><p>📅 Exam: <b>${formatDisplayDate(a.examDate)}</b></p><p>⏰ Time: <b>${a.examTime || '-'}</b> &nbsp; ⏳ Duration: <b>${a.duration || '-'}</b></p><p class="italic text-slate-700 font-bold">👨‍✈️ ${a.instructor}</p></div></div>`;
             });
             document.getElementById('dynamic-content').innerHTML = html + `</div>`;
         }
@@ -716,15 +784,22 @@
             document.getElementById('modal-title').innerText = "Assign Exam Task";
             document.getElementById('modal-body').innerHTML = `
                 <div class="space-y-6">
-                    <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Assign to</label><div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border rounded-2xl bg-white no-scrollbar">${state.users.map(u=>{ const r = u.rating ? (u.rating.includes('(') ? u.rating.split('(')[1].replace(')','') : u.rating) : '-'; return `<div><input type="checkbox" id="ucb-${u.id}" value="${u.id}" data-name="${u.name}" class="ucb hidden custom-checkbox"><label for="ucb-${u.id}" class="flex items-center px-3 py-2 bg-slate-50 border border-transparent rounded-lg text-[10px] font-black text-slate-600 cursor-pointer truncate">${u.name} <span class="text-blue-500 ml-1">(${r})</span></label></div>`}).join('')}</div></div>
+                    <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Assign to (Multi-select)</label>
+                    <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border rounded-2xl bg-white no-scrollbar">${state.users.map(u=>{ const r = u.rating ? (u.rating.includes('(') ? u.rating.split('(')[1].replace(')','') : u.rating) : '-'; return `<div><input type="checkbox" id="ucb-${u.id}" value="${u.id}" data-name="${u.name}" class="ucb hidden custom-checkbox"><label for="ucb-${u.id}" class="flex items-center px-3 py-2 bg-slate-50 border border-transparent rounded-lg text-[10px] font-black text-slate-600 cursor-pointer hover:bg-slate-100 transition-all truncate" title="${u.name} (${r})">${u.name} <span class="text-blue-500 ml-1">(${r})</span></label></div>`}).join('')}</div></div>
                     <div class="flex p-1 bg-slate-100 rounded-2xl"><button onclick="toggleAssignCat('type')" id="tab-t" class="flex-1 py-2.5 text-[9px] font-black rounded-xl bg-white text-blue-600 shadow-sm">TYPE RATING</button><button onclick="toggleAssignCat('mand')" id="tab-m" class="flex-1 py-2.5 text-[9px] font-black rounded-xl text-slate-500">MANDATORY</button></div>
-                    <div id="col-t"><select id="as-t" class="w-full p-3 border rounded-xl text-sm font-bold"><option value="">-- Choose Type Rating Exam --</option>${state.questionSets.filter(q=>q.category==='Type Rating').map(q=>`<option value="${q.title}">${q.title}</option>`).join('')}</select></div>
-                    <div id="col-m" class="hidden"><select id="as-m" class="w-full p-3 border rounded-xl text-sm font-bold"><option value="">-- Choose Mandatory Exam --</option>${state.questionSets.filter(q=>q.category==='Mandatory Training').map(q=>`<option value="${q.title}">${q.title}</option>`).join('')}</select></div>
-                    <div><select id="as-inst" class="w-full p-3 border rounded-xl text-sm italic font-medium"><option value="">-- Select Instructor --</option>${state.instructors.map(i=>`<option value="${i.name} (${i.loaNo})">${i.name} (${i.loaNo})</option>`).join('')}</select></div>
-                    <div class="grid grid-cols-2 gap-4"><div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2">Exam Date</label><input type="date" id="as-date" class="w-full p-3 border rounded-xl text-sm"></div><div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2">Exam Time</label><input type="time" id="as-time" class="w-full p-3 border rounded-xl text-sm"></div></div>
-                    <div class="grid grid-cols-2 gap-4"><div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2">Duration (Hours)</label><input type="number" id="as-dur-h" min="0" class="w-full p-3 border rounded-xl text-sm" placeholder="e.g. 1"></div><div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2">Duration (Mins)</label><input type="number" id="as-dur-m" min="0" max="59" class="w-full p-3 border rounded-xl text-sm" placeholder="e.g. 30"></div></div>
+                    <div id="col-t"><select id="as-t" class="w-full p-3 border rounded-xl text-sm font-bold text-slate-700 outline-none"><option value="">-- Choose Type Rating Exam --</option>${state.questionSets.filter(q=>q.category==='Type Rating').map(q=>`<option value="${q.title}">${q.title}</option>`).join('')}</select></div>
+                    <div id="col-m" class="hidden"><select id="as-m" class="w-full p-3 border rounded-xl text-sm font-bold text-slate-700 outline-none"><option value="">-- Choose Mandatory Exam --</option>${state.questionSets.filter(q=>q.category==='Mandatory Training').map(q=>`<option value="${q.title}">${q.title}</option>`).join('')}</select></div>
+                    <div><select id="as-inst" class="w-full p-3 border rounded-xl text-sm italic font-medium text-slate-600 outline-none"><option value="">-- Select Instructor --</option>${state.instructors.map(i=>`<option value="${i.name} (${i.loaNo})">${i.name} (${i.loaNo})</option>`).join('')}</select></div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Exam Date</label><input type="date" id="as-date" class="w-full p-3 border rounded-xl text-sm"></div>
+                        <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Exam Time</label><input type="time" id="as-time" class="w-full p-3 border rounded-xl text-sm"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Duration (Hours)</label><input type="number" id="as-dur-h" min="0" class="w-full p-3 border rounded-xl text-sm" placeholder="e.g. 1"></div>
+                        <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Duration (Mins)</label><input type="number" id="as-dur-m" min="0" max="59" class="w-full p-3 border rounded-xl text-sm" placeholder="e.g. 30"></div>
+                    </div>
                 </div>`;
-            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveAssign()" class="px-10 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase">Assign Now</button>`;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button><button onclick="saveAssign()" class="px-10 py-3 bg-blue-600 text-white rounded-xl text-xs font-black shadow-lg uppercase tracking-widest">Assign Now</button>`;
             document.getElementById('modal-container').classList.remove('hidden');
         }
 
@@ -734,24 +809,30 @@
         }
 
         function saveAssign() {
-            const cbx = document.querySelectorAll('.ucb:checked'); if(cbx.length === 0) return alert('Select 1 user.');
+            const cbx = document.querySelectorAll('.ucb:checked'); if(cbx.length === 0) return alert('Select minimal 1 user.');
             const isType = !document.getElementById('col-t').classList.contains('hidden'), exTitle = isType ? document.getElementById('as-t').value : document.getElementById('as-m').value, inst = document.getElementById('as-inst').value, eDate = document.getElementById('as-date').value;
-            if(!exTitle || !inst || !eDate) return alert('Lengkapi data.');
+            if(!exTitle || !inst || !eDate) return alert('Lengkapi data!');
 
             const targetSet = state.questionSets.find(q => q.title === exTitle);
             if (targetSet && targetSet.cycle && targetSet.cycle !== 'None') {
                 let err = '';
                 for(let i=0; i<cbx.length; i++) {
-                    const uid = Number(cbx[i].value), userHistory = state.assignments.filter(a => a.userId === uid);
+                    const uid = Number(cbx[i].value), userHistory = state.assignments.filter(a => a.userId === uid && a.status === 'COMPLETED');
                     let lCy = null, lDt = 0;
                     userHistory.forEach(a => {
                         const aSet = state.questionSets.find(q => q.title === a.examTitle);
-                        if (aSet && aSet.category === targetSet.category && aSet.type === targetSet.type && aSet.rating === targetSet.rating && aSet.model === targetSet.model && aSet.cycle && aSet.cycle !== 'None') { const d = new Date(a.examDate).getTime(); if (d >= lDt) { lDt = d; lCy = aSet.cycle; } }
+                        if (aSet && aSet.category === targetSet.category && aSet.type === targetSet.type && aSet.rating === targetSet.rating && aSet.model === targetSet.model && aSet.cycle && aSet.cycle !== 'None') { 
+                            const d = new Date(a.examDate).getTime(); if (d >= lDt) { lDt = d; lCy = aSet.cycle; } 
+                        }
                     });
-                    let exp = 'Cycle 1'; if (lCy === 'Cycle 1') exp = 'Cycle 2'; else if (lCy === 'Cycle 2') exp = 'Cycle 3'; else if (lCy === 'Cycle 3') exp = 'Cycle 1';
+                    let exp = 'Cycle 1'; 
+                    if (lCy === 'Cycle 1') exp = 'Cycle 2'; 
+                    else if (lCy === 'Cycle 2') exp = 'Cycle 3'; 
+                    else if (lCy === 'Cycle 3') exp = 'Cycle 1';
+                    
                     if (targetSet.cycle !== exp) err += `- ${cbx[i].dataset.name} (Harusnya: ${exp})\n`;
                 }
-                if (err !== '') return alert("⚠️ PENUGASAN DITOLAK\nTidak sesuai urutan Cycle:\n" + err);
+                if (err !== '') return alert("⚠️ PENUGASAN DITOLAK\n\nKandidat berikut tidak sesuai urutan Cycle (Siklus):\n" + err + "\nMohon pilih Exam Bank dengan Cycle yang sesuai.");
             }
 
             let durStr = ''; const h = document.getElementById('as-dur-h').value, m = document.getElementById('as-dur-m').value;
@@ -760,7 +841,7 @@
             cbx.forEach(c => { state.assignments.push({ id: Date.now() + Math.random(), userId: Number(c.value), userName: c.dataset.name, examTitle: exTitle, instructor: inst, assignedDate: new Date().toISOString().split('T')[0], examDate: eDate, examTime: document.getElementById('as-time').value, duration: durStr, status: 'NOT STARTED', score: null, grade: null }); });
             syncToCloud(); closeModal(); renderAssignment();
         }
-        function deleteAssign(id) { if(confirm('Delete?')) { state.assignments = state.assignments.filter(x => x.id !== id); syncToCloud(); renderAssignment(); } }
+        function deleteAssign(id) { if(confirm('Delete assignment?')) { state.assignments = state.assignments.filter(x => x.id !== id); syncToCloud(); renderAssignment(); } }
 
         // --- HISTORY ---
         function renderHistoryData() {
@@ -772,7 +853,7 @@
                 </div>
                 <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100"><div class="overflow-x-auto"><table class="w-full text-left border-collapse min-w-[800px]"><thead class="bg-slate-50 border-b"><tr><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Trainee / Candidate</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Exam Title</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Date</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Score</th><th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase">Result</th></tr></thead><tbody class="divide-y divide-slate-50">`;
             if(completed.length === 0) { html += `<tr><td colspan="5" class="px-6 py-12 text-center text-sm font-medium text-slate-400">No history found.</td></tr>`; }
-            else { completed.forEach(a => { const isPass = a.score >= 75; html += `<tr class="hover:bg-slate-50/50"><td class="px-6 py-4 font-bold text-slate-800 text-sm">${a.userName}</td><td class="px-6 py-4 text-xs font-bold text-slate-600 truncate max-w-[200px]">${a.examTitle}</td><td class="px-6 py-4 text-xs text-slate-500">${formatDisplayDate(a.examDate)}</td><td class="px-6 py-4 font-black ${isPass?'text-green-600':'text-red-500'}">${a.score}%</td><td class="px-6 py-4 text-right"><button onclick="viewExamDetails(${a.id})" class="px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase ${isPass?'bg-green-50 text-green-600':'bg-red-50 text-red-600'} hover:opacity-80">View Doc</button></td></tr>`; }); }
+            else { completed.forEach(a => { const isPass = a.score >= 75; html += `<tr class="hover:bg-slate-50/50"><td class="px-6 py-4 font-bold text-slate-800 text-sm">${a.userName}</td><td class="px-6 py-4 text-xs font-bold text-slate-600 truncate max-w-[200px]" title="${a.examTitle}">${a.examTitle}</td><td class="px-6 py-4 text-xs text-slate-500">${formatDisplayDate(a.examDate)}</td><td class="px-6 py-4 font-black ${isPass?'text-green-600':'text-red-500'}">${a.score}%</td><td class="px-6 py-4 text-right"><button onclick="viewExamDetails(${a.id})" class="px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase ${isPass?'bg-green-50 text-green-600':'bg-red-50 text-red-600'} hover:opacity-80 shadow-sm">View Doc</button></td></tr>`; }); }
             document.getElementById('dynamic-content').innerHTML = html + `</tbody></table></div></div>`;
         }
 
@@ -793,8 +874,8 @@
             }
 
             document.getElementById('modal-title').innerText = "Exam Result Details";
-            document.getElementById('modal-body').innerHTML = `<div class="space-y-6"><div class="bg-white p-6 rounded-2xl border border-slate-200"><h4 class="font-black text-slate-800 uppercase tracking-widest text-xs mb-4 border-b pb-2">${term} INFO</h4><div class="grid grid-cols-2 gap-4 text-sm"><div><span class="text-slate-400 text-[10px] uppercase block">Name</span> <span class="font-bold text-slate-800">${u.name}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Rank</span> <span class="font-bold text-slate-800">${u.rank}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">License</span> <span class="font-bold text-slate-800">${u.license}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Instructor</span> <span class="font-bold text-slate-800">${instName}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Exam Date</span> <span class="font-bold text-slate-800">${formatDisplayDate(a.examDate)}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Duration</span> <span class="font-bold text-slate-800">${a.duration || '-'}</span></div></div></div><div class="bg-white p-6 rounded-2xl border border-slate-200 text-center shadow-inner"><div class="text-5xl font-black ${a.score < 75 ? 'text-red-500' : 'text-green-500'} mb-2">${a.score}%</div><div class="font-bold text-slate-800 text-sm uppercase">${a.grade} - ${correct}/${total} correct</div>${tL.includes('recurrent') ? `<div class="font-black text-xs mt-4 text-green-600 bg-green-50 inline-block px-3 py-1 rounded">CORRECTED TO 100%</div>` : ''}</div><div class="bg-white p-6 rounded-2xl border border-slate-200">${ansH}</div></div>`;
-            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-6 py-2.5 text-xs font-bold text-slate-400 uppercase">Close</button><button onclick="printExamResult(${assignmentId})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase">Print PDF</button>`;
+            document.getElementById('modal-body').innerHTML = `<div class="space-y-6"><div class="bg-white p-6 rounded-2xl border border-slate-200"><h4 class="font-black text-slate-800 uppercase tracking-widest text-xs mb-4 border-b pb-2">${term} INFO</h4><div class="grid grid-cols-2 gap-4 text-sm"><div><span class="text-slate-400 text-[10px] uppercase block">Name</span> <span class="font-bold text-slate-800">${u.name}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Rank</span> <span class="font-bold text-slate-800">${u.rank}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">License</span> <span class="font-bold text-slate-800">${u.license}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Instructor</span> <span class="font-bold text-slate-800">${instName}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Exam Date</span> <span class="font-bold text-slate-800">${formatDisplayDate(a.examDate)}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Duration</span> <span class="font-bold text-slate-800">${a.duration || '-'}</span></div></div></div><div class="bg-white p-6 rounded-2xl border border-slate-200 text-center shadow-inner"><div class="text-5xl font-black ${a.score < 75 ? 'text-red-500' : 'text-green-500'} mb-2">${a.score}%</div><div class="font-bold text-slate-800 text-sm uppercase">${a.grade} - ${correct}/${total} correct</div>${tL.includes('recurrent') ? `<div class="font-black text-xs mt-4 text-green-600 bg-green-50 inline-block px-3 py-1 rounded border border-green-200">CORRECTED TO 100%</div>` : ''}</div><div class="bg-white p-6 rounded-2xl border border-slate-200">${ansH}</div></div>`;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-6 py-2.5 text-xs font-bold text-slate-400 uppercase">Close</button><button onclick="printExamResult(${assignmentId})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Print PDF</button>`;
             document.getElementById('modal-container').classList.remove('hidden');
         }
 
@@ -825,7 +906,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 10pt; margin-top: 15px;"><div style="text-align: left; font-weight: bold; font-style: italic;">Online Examination Form</div><div style="text-align: right;">Form No: ${state.formNo ? state.formNo.value : '-'}</div></div>
                     </div>
                     <div class="print-section-title">${term.toUpperCase()} INFORMATION</div>
-                    <table class="print-table"><tr><td>Name ${term}:</td><td><b>${u.name}</b></td></tr><tr><td>Rank:</td><td><b>${u.rank}</b></td></tr><tr><td>No. License:</td><td><b>${u.license}</b></td></tr>${cyc ? `<tr><td>Training Cycle:</td><td><b>${cyc}</b></td></tr>` : ''}<tr><td>Name Instructor:</td><td><b>${instName}</b></td></tr><tr><td>LOA Instructor:</td><td><b>${instLOA}</b></td></tr><tr><td>Exam Date:</td><td><b>${formatDisplayDate(a.examDate)}</b></td></tr><tr><td>Exam Time:</td><td><b>${a.examTime || '-'}</b></td></tr><tr><td>Duration:</td><td><b>${a.duration || '-'}</b></td></tr></table>
+                    <table class="print-table"><tr><td>Name ${term}:</td><td><b>${u.name}</b></td></tr><tr><td>Rank:</td><td><b>${u.rank}</b></td></tr><tr><td>No. License:</td><td><b>${u.license || '-'}</b></td></tr>${cyc ? `<tr><td>Training Cycle:</td><td><b>${cyc}</b></td></tr>` : ''}<tr><td>Name Instructor:</td><td><b>${instName}</b></td></tr><tr><td>LOA Instructor:</td><td><b>${instLOA}</b></td></tr><tr><td>Exam Date:</td><td><b>${formatDisplayDate(a.examDate)}</b></td></tr><tr><td>Exam Time:</td><td><b>${a.examTime || '-'}</b></td></tr><tr><td>Duration:</td><td><b>${a.duration || '-'}</b></td></tr></table>
                     <div class="print-section-title" style="text-align: center;">EXAMINATION RESULT</div>
                     <div class="print-result-box"><div class="print-score" style="color: ${a.score < 75 ? 'red' : 'green'};">${a.score}%</div><div style="font-weight: bold; margin-bottom: 5px;">${a.grade} - ${correct} out of ${total} correct</div><div>Passing Score: 75% | Result: ${a.score >= 75 ? '✓ PASS' : '✗ FAIL'}</div>${tL.includes('recurrent') ? `<div style="font-weight: bold; margin-top: 10px; color: green;">CORRECTED TO 100%</div>` : ''}</div>
                     <div class="print-section-title">ANSWER SUMMARY</div><div>${ansH}</div>
@@ -838,7 +919,7 @@
             promptVerify(() => {
                 document.getElementById('modal-title').innerText = "Import Exam History (Sheets)";
                 document.getElementById('modal-body').innerHTML = `<div class="space-y-4"><div class="p-4 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800"><p class="font-bold mb-2 uppercase tracking-widest text-[10px]">Instruksi Import:</p><ol class="list-decimal ml-4 space-y-1"><li>Buka Sheets Anda (Tab Assignments).</li><li>Copy data dari Baris ke-2 ke bawah.</li><li>Paste ke dalam kotak teks di bawah ini.</li></ol></div><div><textarea id="import-history-text" rows="10" class="w-full p-3 border rounded-xl text-xs font-mono whitespace-pre-wrap outline-none" placeholder="Paste..."></textarea></div></div>`;
-                document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-600">Cancel</button><button onclick="processHistoryImport()" class="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase">Process Import</button>`;
+                document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-600">Cancel</button><button onclick="processHistoryImport()" class="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Process Import</button>`;
                 document.getElementById('modal-container').classList.remove('hidden');
             });
         }
@@ -858,7 +939,14 @@
                     } catch (e) { ec++; }
                 }
             });
-            if (ic > 0) { syncToCloud(); alert(`Diimpor: ${ic} riwayat. (${ec} gagal/diabaikan).`); closeModal(); if (state.currentUser && state.currentUser.role === 'superadmin') renderSuperAdmin(); else renderHistoryData(); } else { alert("Tidak ada data baru."); }
+            if (ic > 0) { 
+                syncToCloud(); 
+                alert(`Diimpor: ${ic} riwayat. (${ec} gagal/diabaikan).`); 
+                closeModal(); 
+                if (state.currentUser && state.currentUser.role === 'superadmin') renderSuperAdmin(); else renderHistoryData(); 
+            } else { 
+                alert("Tidak ada data baru."); 
+            }
         }
 
         // --- USER PORTAL ---
@@ -869,7 +957,7 @@
             else {
                 myTasks.forEach(a => {
                     const isDone = a.status === 'COMPLETED', inProg = a.status === 'IN PROGRESS';
-                    html += `<div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col relative group"><div class="flex justify-between items-start mb-4"><span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${isDone?'bg-green-100 text-green-700':inProg?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700'}">${a.status}</span></div><h4 class="text-lg font-black text-slate-900 leading-tight mb-2">${a.examTitle}</h4><div class="space-y-1 text-xs text-slate-500 mb-6 flex-1"><p>📅 ${formatDisplayDate(a.examDate)}</p><p>⏰ ${a.examTime || '-'} | ⏳ ${a.duration || '-'}</p></div><div>${isDone ? `<div class="p-3 bg-slate-50 rounded-xl text-center"><p class="text-[10px] font-black text-slate-400 uppercase mb-1">Final Score</p><p class="text-2xl font-black ${a.score >= 75 ? 'text-green-500' : 'text-red-500'}">${a.score}%</p></div>` : `<button onclick="startRealExam(${a.id})" class="w-full py-4 ${inProg ? 'bg-amber-500' : 'bg-blue-600'} text-white rounded-xl text-xs font-black uppercase shadow-lg">${inProg ? 'Resume Exam' : 'Start Exam'}</button>`}</div></div>`;
+                    html += `<div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col relative group"><div class="flex justify-between items-start mb-4"><span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${isDone?'bg-green-100 text-green-700':inProg?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700'}">${a.status}</span></div><h4 class="text-lg font-black text-slate-900 leading-tight mb-2 pr-4">${a.examTitle}</h4><div class="space-y-1 text-xs text-slate-500 mb-6 flex-1"><p>📅 ${formatDisplayDate(a.examDate)}</p><p>⏰ ${a.examTime || '-'} | ⏳ ${a.duration || '-'}</p></div><div>${isDone ? `<div class="p-3 bg-slate-50 rounded-xl text-center"><p class="text-[10px] font-black text-slate-400 uppercase mb-1">Final Score</p><p class="text-2xl font-black ${a.score >= 75 ? 'text-green-500' : 'text-red-500'}">${a.score}%</p></div>` : `<button onclick="startRealExam(${a.id})" class="w-full py-4 ${inProg ? 'bg-amber-500' : 'bg-blue-600'} text-white rounded-xl text-xs font-black uppercase shadow-lg hover:opacity-90">${inProg ? 'Resume Exam' : 'Start Exam'}</button>`}</div></div>`;
                 });
             }
             document.getElementById('dynamic-content').innerHTML = html + `</div>`;
@@ -913,7 +1001,7 @@
                     <div class="p-8 md:p-12"><span class="text-[10px] font-black bg-blue-50 text-blue-600 px-3 py-1 rounded uppercase tracking-widest">${q.section}</span><h4 class="text-xl font-bold text-slate-800 mt-6 mb-8 leading-relaxed">${ex.currentIndex + 1}. ${q.text}</h4>
                         <div class="space-y-4">${['A', 'B', 'C', 'D'].map(opt => { const optText = q.options[opt]; if (!optText) return ''; const isSel = ex.answers[q.id] === opt, cStyle = timeUp ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:border-blue-300'; return `<div ${timeUp ? '' : `onclick="selectExamOption('${opt}')"`} class="p-5 border-2 rounded-2xl transition-all ${isSel ? 'border-blue-600 bg-blue-50 shadow-md' : `border-slate-100 bg-white ${cStyle}`}"><div class="flex items-center gap-4"><div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${isSel ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}">${opt}</div><span class="font-medium text-slate-700 text-base">${optText}</span></div></div>`; }).join('')}</div>
                     </div>
-                    <div class="bg-slate-50 p-6 border-t border-slate-100 flex justify-between items-center"><button onclick="navigateExam(-1)" class="px-8 py-3 text-sm font-bold text-slate-500 uppercase ${isFirst ? 'invisible' : ''}">Previous</button>${(isLast || timeUp) ? `<button onclick="submitExam(${timeUp ? 'true' : 'false'})" class="px-10 py-3 ${timeUp ? 'bg-red-600 animate-pulse' : 'bg-green-600'} text-white rounded-xl text-sm font-black uppercase">Submit</button>` : `<button onclick="navigateExam(1)" class="px-10 py-3 bg-blue-600 text-white rounded-xl text-sm font-black uppercase">Next</button>`}</div>
+                    <div class="bg-slate-50 p-6 border-t border-slate-100 flex justify-between items-center"><button onclick="navigateExam(-1)" class="px-8 py-3 text-sm font-bold text-slate-500 uppercase ${isFirst ? 'invisible' : ''} hover:bg-slate-200 rounded-xl transition-colors">Previous</button>${(isLast || timeUp) ? `<button onclick="submitExam(${timeUp ? 'true' : 'false'})" class="px-10 py-3 ${timeUp ? 'bg-red-600 animate-pulse' : 'bg-green-600 hover:bg-green-700'} text-white rounded-xl text-sm font-black uppercase shadow-lg">Submit</button>` : `<button onclick="navigateExam(1)" class="px-10 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-black uppercase shadow-lg">Next</button>`}</div>
                 </div>`;
             document.getElementById('dynamic-content').innerHTML = html; updateTimerUI(); 
         }
@@ -935,36 +1023,28 @@
                 if(ua === q.answer) { ansH += `<div class="mb-3 p-5 bg-green-50 border border-green-100 rounded-xl"><p class="font-bold text-sm text-slate-800 mb-2">Q${idx + 1}: ${q.text}</p><p class="text-xs font-bold text-green-600">${q.answer}. ${q.options[q.answer]} ✓</p></div>`; } 
                 else { ansH += `<div class="mb-3 p-5 bg-red-50 border border-red-100 rounded-xl"><p class="font-bold text-sm text-slate-800 mb-2">Q${idx + 1}: ${q.text}</p><p class="text-xs font-bold text-red-500 mb-2">${ua ? ua + '. ' + q.options[ua] : 'No Answer'} ✗</p><p class="text-[10px] font-bold text-green-600">Correct: ${q.answer}. ${q.options[q.answer]}</p></div>`; }
             });
-            document.getElementById('dynamic-content').innerHTML = `<div class="max-w-3xl mx-auto space-y-6 page-fade"><div class="bg-dark-card p-8 rounded-3xl text-center border border-slate-700 relative overflow-hidden"><h2 class="text-white text-sm font-black uppercase mb-4 relative z-10">EXAMINATION COMPLETED</h2><div class="text-7xl font-black ${sCl} mb-4 relative z-10">${score}%</div><div class="inline-block px-4 py-1 rounded-full ${score >= 75 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'} font-bold text-sm uppercase mb-2 relative z-10">${grade}</div><p class="text-slate-400 text-xs font-medium relative z-10">${cc} correct out of ${ex.questions.length}</p>${isRec ? `<p class="mt-4 text-green-400 font-bold text-xs uppercase relative z-10 border border-green-500/30 inline-block px-3 py-1 rounded bg-green-500/10">CORRECTED TO 100%</p>` : ''}</div><div class="bg-white rounded-3xl p-8"><h3 class="text-lg font-black text-slate-800 uppercase mb-6 border-b border-slate-100 pb-4">Detailed Review</h3><div class="space-y-2">${ansH}</div></div><div class="text-center pt-4"><button onclick="renderUserPortal()" class="px-10 py-4 bg-slate-900 text-white rounded-xl text-sm font-black uppercase">Back to Dashboard</button></div></div>`;
+            document.getElementById('dynamic-content').innerHTML = `<div class="max-w-3xl mx-auto space-y-6 page-fade"><div class="bg-dark-card p-8 rounded-3xl text-center border border-slate-700 relative overflow-hidden"><h2 class="text-white text-sm font-black uppercase mb-4 relative z-10">EXAMINATION COMPLETED</h2><div class="text-7xl font-black ${sCl} mb-4 relative z-10">${score}%</div><div class="inline-block px-4 py-1 rounded-full ${score >= 75 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'} font-bold text-sm uppercase mb-2 relative z-10">${grade}</div><p class="text-slate-400 text-xs font-medium relative z-10">${cc} correct out of ${ex.questions.length}</p>${isRec ? `<p class="mt-4 text-green-400 font-bold text-xs uppercase relative z-10 border border-green-500/30 inline-block px-3 py-1 rounded bg-green-500/10">CORRECTED TO 100%</p>` : ''}</div><div class="bg-white rounded-3xl p-8"><h3 class="text-lg font-black text-slate-800 uppercase mb-6 border-b border-slate-100 pb-4">Detailed Review</h3><div class="space-y-2">${ansH}</div></div><div class="text-center pt-4"><button onclick="renderUserPortal()" class="px-10 py-4 bg-slate-900 hover:bg-slate-800 transition-colors text-white rounded-xl text-sm font-black uppercase shadow-xl">Back to Dashboard</button></div></div>`;
         }
 
         function closeModal() { document.getElementById('modal-container').classList.add('hidden'); }
         function updateSignPreview(val, boxId) { document.getElementById(boxId).innerHTML = val || '<span class="text-[10px] text-slate-400 italic">No signature yet</span>'; }
 
-        // --- PWA INSTALL LOGIC ---
-        let deferredPrompt;
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-        });
-
-        function installPWA() {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') { console.log('User accepted the install prompt'); }
-                    deferredPrompt = null;
-                });
-            } else {
-                // Fallback instruksi manual untuk iOS atau Android yang tidak memicu prompt
-                alert("CARA INSTALL APLIKASI:\n\n📱 iOS (iPhone/iPad):\n1. Buka web ini di Safari.\n2. Tekan tombol Share (kotak dengan panah ke atas) di menu bawah.\n3. Pilih 'Add to Home Screen' (Tambahkan ke Layar Utama).\n\n📱 Android (Chrome):\n1. Tekan tombol Menu (titik tiga) di pojok kanan atas.\n2. Pilih 'Add to Home screen' (Tambahkan ke Layar Utama).");
-            }
-        }
-
-        // Otomatis sembunyikan tombol jika aplikasi sudah dibuka dari Home Screen (Standalone mode)
+        // --- PWA LOGIC FALLBACK ---
         if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
             const btn1 = document.getElementById('btn-install-login'); if(btn1) btn1.classList.add('hidden');
             const btn2 = document.getElementById('btn-install-main'); if(btn2) btn2.classList.add('hidden');
+        } else {
+            let pwaPrompt;
+            window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pwaPrompt = e; });
+            window.installPWA = function() {
+                if (pwaPrompt) {
+                    pwaPrompt.prompt(); pwaPrompt.userChoice.then(() => { pwaPrompt = null; });
+                } else {
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                    if(isIOS) alert("CARA INSTALL DI iOS/iPHONE:\n1. Tekan tombol Share (kotak dengan panah ke atas) di menu bawah Safari.\n2. Scroll ke bawah, pilih 'Add to Home Screen'.");
+                    else alert("CARA INSTALL DI ANDROID/PC:\n1. Buka menu browser (titik tiga di pojok kanan atas).\n2. Pilih 'Add to Home screen' atau 'Install app'.");
+                }
+            };
         }
     </script>
 </body>
