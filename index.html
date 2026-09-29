@@ -940,6 +940,32 @@
 
         function closeModal() { document.getElementById('modal-container').classList.add('hidden'); }
         function updateSignPreview(val, boxId) { document.getElementById(boxId).innerHTML = val || '<span class="text-[10px] text-slate-400 italic">No signature yet</span>'; }
+
+        // --- PWA INSTALL LOGIC ---
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+        });
+
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') { console.log('User accepted the install prompt'); }
+                    deferredPrompt = null;
+                });
+            } else {
+                // Fallback instruksi manual untuk iOS atau Android yang tidak memicu prompt
+                alert("CARA INSTALL APLIKASI:\n\n📱 iOS (iPhone/iPad):\n1. Buka web ini di Safari.\n2. Tekan tombol Share (kotak dengan panah ke atas) di menu bawah.\n3. Pilih 'Add to Home Screen' (Tambahkan ke Layar Utama).\n\n📱 Android (Chrome):\n1. Tekan tombol Menu (titik tiga) di pojok kanan atas.\n2. Pilih 'Add to Home screen' (Tambahkan ke Layar Utama).");
+            }
+        }
+
+        // Otomatis sembunyikan tombol jika aplikasi sudah dibuka dari Home Screen (Standalone mode)
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+            const btn1 = document.getElementById('btn-install-login'); if(btn1) btn1.classList.add('hidden');
+            const btn2 = document.getElementById('btn-install-main'); if(btn2) btn2.classList.add('hidden');
+        }
     </script>
 </body>
 </html>
