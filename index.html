@@ -926,6 +926,20 @@
 
             const cyc = (tL.includes('recurrent') && set && set.cycle && set.cycle !== 'None') ? set.cycle : null;
 
+            // Helper untuk memastikan format signUrl siap dirender (Bisa berupa <img> tag utuh atau sekadar URL)
+            const formatSignature = (signData) => {
+                if (!signData) return '';
+                const str = signData.trim();
+                // Jika sudah berupa tag HTML (<img... atau <svg...), langsung kembalikan
+                if (str.startsWith('<')) return str; 
+                // Jika berupa URL murni (http... atau data:image...), bungkus dengan tag img
+                if (str.startsWith('http') || str.startsWith('data:image')) return `<img src="${str}" alt="Signature" />`;
+                return ''; // Format tidak dikenali
+            };
+
+            const userSignatureHTML = formatSignature(u.signUrl);
+            const instSignatureHTML = formatSignature(instSignUrl);
+
             document.getElementById('print-area').innerHTML = `
                 <div class="print-page">
                     <div class="print-header">
@@ -938,7 +952,7 @@
                     <div class="print-section-title" style="text-align: center;">EXAMINATION RESULT</div>
                     <div class="print-result-box"><div class="print-score" style="color: ${a.score < 75 ? 'red' : 'green'};">${a.score}%</div><div style="font-weight: bold; margin-bottom: 5px;">${a.grade} - ${correct} out of ${total} correct</div><div>Passing Score: 75% | Result: ${a.score >= 75 ? '✓ PASS' : '✗ FAIL'}</div>${tL.includes('recurrent') ? `<div style="font-weight: bold; margin-top: 10px; color: green;">CORRECTED TO 100%</div>` : ''}</div>
                     <div class="print-section-title">ANSWER SUMMARY</div><div>${ansH}</div>
-                    <div class="print-signatures"><div class="print-sig-box"><div class="print-sig-title">${term} Signature</div><div class="print-sig-img">${u.signUrl || ''}</div><div class="print-sig-name">${u.name}</div><div class="print-sig-detail">${u.license || '-'}</div></div><div class="print-sig-box"><div class="print-sig-title">Examiner Signature</div><div class="print-sig-img">${instSignUrl || ''}</div><div class="print-sig-name">${instName}</div><div class="print-sig-detail">${instLOA || '-'}</div></div></div>
+                    <div class="print-signatures"><div class="print-sig-box"><div class="print-sig-title">${term} Signature</div><div class="print-sig-img">${userSignatureHTML}</div><div class="print-sig-name">${u.name}</div><div class="print-sig-detail">${u.license || '-'}</div></div><div class="print-sig-box"><div class="print-sig-title">Examiner Signature</div><div class="print-sig-img">${instSignatureHTML}</div><div class="print-sig-name">${instName}</div><div class="print-sig-detail">${instLOA || '-'}</div></div></div>
                 </div>`;
             window.print(); setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000);
         }
