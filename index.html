@@ -926,15 +926,12 @@
 
             const cyc = (tL.includes('recurrent') && set && set.cycle && set.cycle !== 'None') ? set.cycle : null;
 
-            // Helper untuk memastikan format signUrl siap dirender (Bisa berupa <img> tag utuh atau sekadar URL)
             const formatSignature = (signData) => {
                 if (!signData) return '';
                 const str = signData.trim();
-                // Jika sudah berupa tag HTML (<img... atau <svg...), langsung kembalikan
                 if (str.startsWith('<')) return str; 
-                // Jika berupa URL murni (http... atau data:image...), bungkus dengan tag img
-                if (str.startsWith('http') || str.startsWith('data:image')) return `<img src="${str}" alt="Signature" />`;
-                return ''; // Format tidak dikenali
+                if (str.startsWith('http') || str.startsWith('data:image')) return `<img src="${str}" alt="Signature" crossorigin="anonymous" />`;
+                return ''; 
             };
 
             const userSignatureHTML = formatSignature(u.signUrl);
@@ -943,7 +940,7 @@
             document.getElementById('print-area').innerHTML = `
                 <div class="print-page">
                     <div class="print-header">
-                        <img src="https://lh3.googleusercontent.com/d/1WNcGjsZ9_Fp54xzOl01EYRqM6-wY5Zh7" alt="TWA Logo" style="display: block; margin: 0 auto 15px auto; height: 70px; object-fit: contain;" />
+                        <img src="https://lh3.googleusercontent.com/d/1WNcGjsZ9_Fp54xzOl01EYRqM6-wY5Zh7" alt="TWA Logo" style="display: block; margin: 0 auto 15px auto; height: 70px; object-fit: contain;" crossorigin="anonymous" />
                         <h1>Transwisata Prima Aviation</h1><h2>FLIGHT CREW EXAMINATION RESULT</h2><h3>${a.examTitle}</h3>${cyc ? `<h4 style="margin: 5px 0 0 0; font-size: 12pt;">(${cyc.toUpperCase()})</h4>` : ''}
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 10pt; margin-top: 15px;"><div style="text-align: left; font-weight: bold; font-style: italic;">Online Examination Form</div><div style="text-align: right;">Form No: ${state.formNo ? state.formNo.value : '-'}</div></div>
                     </div>
@@ -954,40 +951,51 @@
                     <div class="print-section-title">ANSWER SUMMARY</div><div>${ansH}</div>
                     <div class="print-signatures"><div class="print-sig-box"><div class="print-sig-title">${term} Signature</div><div class="print-sig-img">${userSignatureHTML}</div><div class="print-sig-name">${u.name}</div><div class="print-sig-detail">${u.license || '-'}</div></div><div class="print-sig-box"><div class="print-sig-title">Examiner Signature</div><div class="print-sig-img">${instSignatureHTML}</div><div class="print-sig-name">${instName}</div><div class="print-sig-detail">${instLOA || '-'}</div></div></div>
                 </div>`;
-            window.print(); setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000);
-        }
+            
+            // Logika Pre-loading: Tunggu semua gambar selesai dimuat sebelum window.print()
+            const printArea = document.getElementById('print-area');
+            const images = printArea.getElementsByTagName('img');
+            let loadedCount = 0;
 
-        function openImportHistoryModal() {
-            promptVerify(() => {
-                document.getElementById('modal-title').innerText = "Import Exam History (Sheets)";
-                document.getElementById('modal-body').innerHTML = `<div class="space-y-4"><div class="p-4 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800"><p class="font-bold mb-2 uppercase tracking-widest text-[10px]">Instruksi Import:</p><ol class="list-decimal ml-4 space-y-1"><li>Buka Sheets Anda (Tab Assignments).</li><li>Copy data dari Baris ke-2 ke bawah.</li><li>Paste ke dalam kotak teks di bawah ini.</li></ol></div><div><textarea id="import-history-text" rows="10" class="w-full p-3 border rounded-xl text-xs font-mono whitespace-pre-wrap outline-none" placeholder="Paste..."></textarea></div></div>`;
-                document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-600">Cancel</button><button onclick="processHistoryImport()" class="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Process Import</button>`;
-                document.getElementById('modal-container').classList.remove('hidden');
-            });
-        }
+            if (images.length === 0) {
+                // Jika tidak ada gambar sama sekali, langsung print
+                executePrint();
+            } else {
+                // Beri indikator loading (opsional, memanfaatkan console log)
+                console.log(`Waiting for ${images.length} images to load for PDF...`);
+                
+                // Set timeout maksimal 3 detik. Jika gambar gagal dimuat (misal link mati), 
+                // tetap paksa print agar sistem tidak hang.
+                const timeoutId = setTimeout(() => {
+                    console.warn("Image load timeout. Forcing print dialog.");
+                    executePrint();
+                }, 3000);
 
-        function processHistoryImport() {
-            const raw = document.getElementById('import-history-text').value; if (!raw.trim()) return alert("Teks kosong.");
-            const rows = raw.trim().split('\n'); let ic = 0, ec = 0;
-            rows.forEach(r => {
-                const c = r.split('\t');
-                if (c.length >= 12) {
-                    try {
-                        const id = Number(c[0].trim());
-                        if (!state.assignments.find(a => a.id === id)) {
-                            let pa = null; if (c[12]) { try { pa = JSON.parse(c[12].trim().replace(/^"|"$/g, '').replace(/""/g, '"')); } catch (e) {} }
-                            state.assignments.push({ id: id, userId: Number(c[1].trim()), userName: c[2].trim(), examTitle: c[3].trim(), instructor: c[4].trim(), assignedDate: c[5].trim(), examDate: c[6].trim(), examTime: c[7].trim(), duration: c[8].trim(), status: c[9].trim(), score: c[10].trim() !== '' ? Number(c[10].trim()) : null, grade: c[11].trim(), answers: pa }); ic++;
-                        }
-                    } catch (e) { ec++; }
+                for (let i = 0; i < images.length; i++) {
+                    if (images[i].complete) {
+                        checkAllLoaded();
+                    } else {
+                        images[i].onload = checkAllLoaded;
+                        images[i].onerror = checkAllLoaded; // Jika error/gagal load, tetap hitung agar tidak macet
+                    }
                 }
-            });
-            if (ic > 0) { 
-                syncToCloud(); 
-                alert(`Diimpor: ${ic} riwayat. (${ec} gagal/diabaikan).`); 
-                closeModal(); 
-                if (state.currentUser && state.currentUser.role === 'superadmin') renderSuperAdmin(); else renderHistoryData(); 
-            } else { 
-                alert("Tidak ada data baru."); 
+
+                function checkAllLoaded() {
+                    loadedCount++;
+                    if (loadedCount === images.length) {
+                        clearTimeout(timeoutId); // Batalkan pemaksaan timeout
+                        executePrint();
+                    }
+                }
+            }
+
+            function executePrint() {
+                // Beri sedikit jeda 100ms agar browser merender elemen ke DOM secara sempurna
+                setTimeout(() => {
+                    window.print();
+                    // Bersihkan print-area setelah print dialog ditutup
+                    setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000);
+                }, 100);
             }
         }
 
