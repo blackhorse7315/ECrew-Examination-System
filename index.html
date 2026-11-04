@@ -1062,9 +1062,20 @@
             if (force !== true && !confirm("Kumpulkan jawaban sekarang?")) return;
             const ex = window.activeExam; clearInterval(ex.timerId); let cc = 0; ex.questions.forEach(q => { if (ex.answers[q.id] === q.answer) cc++; });
             const score = Math.round((cc / ex.questions.length) * 100); let grade = score === 100 ? 'PERFECT' : score >= 86 ? 'EXCELLENT' : score >= 75 ? 'PASSED' : 'FAILED';
-            ex.assignment.status = 'COMPLETED'; ex.assignment.score = score; ex.assignment.grade = grade; ex.assignment.answers = ex.answers;
+            
+            // MENCEGAH DATA HILANG: Cari referensi assignment terbaru di memory sebelum menyimpan jawaban
+            const currentAssignment = state.assignments.find(a => a.id === ex.assignment.id);
+            if (currentAssignment) {
+                currentAssignment.status = 'COMPLETED'; currentAssignment.score = score; currentAssignment.grade = grade; currentAssignment.answers = ex.answers;
+                ex.assignment = currentAssignment;
+            } else {
+                ex.assignment.status = 'COMPLETED'; ex.assignment.score = score; ex.assignment.grade = grade; ex.assignment.answers = ex.answers;
+            }
+            
             syncToCloud(); renderExamResultUserView(ex, score, grade, cc);
         }
+
+        function closeExam() { window.activeExam = null; renderUserPortal(); }
 
         function renderExamResultUserView(ex, score, grade, cc) {
             const isRec = ex.assignment.examTitle.toLowerCase().includes('recurrent'); let sCl = score === 100 ? "text-gold" : score >= 75 ? "text-green-500" : "text-red-500"; let ansH = '';
@@ -1073,7 +1084,7 @@
                 if(ua === q.answer) { ansH += `<div class="mb-3 p-5 bg-green-50 border border-green-100 rounded-xl"><p class="font-bold text-sm text-slate-800 mb-2">Q${idx + 1}: ${q.text}</p><p class="text-xs font-bold text-green-600">${q.answer}. ${q.options[q.answer]} ✓</p></div>`; } 
                 else { ansH += `<div class="mb-3 p-5 bg-red-50 border border-red-100 rounded-xl"><p class="font-bold text-sm text-slate-800 mb-2">Q${idx + 1}: ${q.text}</p><p class="text-xs font-bold text-red-500 mb-2">${ua ? ua + '. ' + q.options[ua] : 'No Answer'} ✗</p><p class="text-[10px] font-bold text-green-600">Correct: ${q.answer}. ${q.options[q.answer]}</p></div>`; }
             });
-            document.getElementById('dynamic-content').innerHTML = `<div class="max-w-3xl mx-auto space-y-6 page-fade"><div class="bg-dark-card p-8 rounded-3xl text-center border border-slate-700 relative overflow-hidden"><h2 class="text-white text-sm font-black uppercase mb-4 relative z-10">EXAMINATION COMPLETED</h2><div class="text-7xl font-black ${sCl} mb-4 relative z-10">${score}%</div><div class="inline-block px-4 py-1 rounded-full ${score >= 75 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'} font-bold text-sm uppercase mb-2 relative z-10">${grade}</div><p class="text-slate-400 text-xs font-medium relative z-10">${cc} correct out of ${ex.questions.length}</p>${isRec ? `<p class="mt-4 text-green-400 font-bold text-xs uppercase relative z-10 border border-green-500/30 inline-block px-3 py-1 rounded bg-green-500/10">CORRECTED TO 100%</p>` : ''}</div><div class="bg-white rounded-3xl p-8"><h3 class="text-lg font-black text-slate-800 uppercase mb-6 border-b border-slate-100 pb-4">Detailed Review</h3><div class="space-y-2">${ansH}</div></div><div class="text-center pt-4"><button onclick="renderUserPortal()" class="px-10 py-4 bg-slate-900 hover:bg-slate-800 transition-colors text-white rounded-xl text-sm font-black uppercase shadow-xl">Back to Dashboard</button></div></div>`;
+            document.getElementById('dynamic-content').innerHTML = `<div class="max-w-3xl mx-auto space-y-6 page-fade"><div class="bg-dark-card p-8 rounded-3xl text-center border border-slate-700 relative overflow-hidden"><h2 class="text-white text-sm font-black uppercase mb-4 relative z-10">EXAMINATION COMPLETED</h2><div class="text-7xl font-black ${sCl} mb-4 relative z-10">${score}%</div><div class="inline-block px-4 py-1 rounded-full ${score >= 75 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'} font-bold text-sm uppercase mb-2 relative z-10">${grade}</div><p class="text-slate-400 text-xs font-medium relative z-10">${cc} correct out of ${ex.questions.length}</p>${isRec ? `<p class="mt-4 text-green-400 font-bold text-xs uppercase relative z-10 border border-green-500/30 inline-block px-3 py-1 rounded bg-green-500/10">CORRECTED TO 100%</p>` : ''}</div><div class="bg-white rounded-3xl p-8"><h3 class="text-lg font-black text-slate-800 uppercase mb-6 border-b border-slate-100 pb-4">Detailed Review</h3><div class="space-y-2">${ansH}</div></div><div class="text-center pt-4"><button onclick="closeExam()" class="px-10 py-4 bg-slate-900 hover:bg-slate-800 transition-colors text-white rounded-xl text-sm font-black uppercase shadow-xl">Back to Dashboard</button></div></div>`;
         }
 
         function closeModal() { document.getElementById('modal-container').classList.add('hidden'); }
