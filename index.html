@@ -323,7 +323,10 @@
                 
                 hideLoading();
                 if (state.currentUser) {
-                    if (state.currentUser.role === 'superadmin') renderSuperAdmin();
+                    if (state.currentUser.role === 'superadmin') {
+                        if (document.getElementById('history-edit-rows')) renderSuperadminHistory();
+                        else renderSuperAdmin();
+                    }
                     else if (state.isAdmin) renderTabContent(state.activeTab);
                     else renderUserPortal();
                 }
@@ -333,13 +336,13 @@
             });
         };
 
-        function syncToCloud() {
-            if (!window.firebaseReady || !window.auth.currentUser) return;
+        function syncToCloud(strict = false) {
+            if (!window.firebaseReady || !window.auth.currentUser) { const e = new Error('Firebase belum terhubung.'); return strict ? Promise.reject(e) : Promise.resolve(false); }
             const docRef = window.fsDoc(window.db, 'artifacts', window.appId, 'public', 'data', 'ecrew_db', 'main_state');
-            window.fsSetDoc(docRef, {
+            return window.fsSetDoc(docRef, {
                 users: state.users, instructors: state.instructors, assignments: state.assignments,
                 questionSets: state.questionSets, formNo: state.formNo, admin: state.admin, superAdmin: state.superAdmin
-            }).catch(err => console.error("Sync Failed:", err));
+            }).catch(err => { console.error("Sync Failed:", err); if (strict) throw err; return false; });
         }
 
         // --- PASSWORD VISIBILITY ---
@@ -430,6 +433,13 @@
                             <input type="text" id="sa-pin" value="${state.superAdmin.code}" class="w-full p-3 border rounded-xl text-sm font-mono">
                         </div>
                         <button onclick="saveSuperAdmin()" class="w-full py-4 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest mt-4 hover:bg-slate-800">Save Configuration</button>
+                    </div>
+                    <div class="mt-6 p-5 bg-white border border-slate-100 rounded-3xl shadow-sm">
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                            <div><h3 class="text-sm font-black uppercase text-slate-800">History Management</h3><p class="text-xs text-slate-500 mt-1">Edit completed examination records (Superadmin only)</p></div>
+                            <button onclick="renderSuperadminHistory()" class="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl">Edit History</button>
+                        </div>
+                        <p class="text-xs text-slate-500">Jawaban, examiner/instructor, tanggal, jam dan durasi. Score otomatis dihitung ulang.</p>
                     </div>
                     <div class="mt-8 text-center">
                         <button onclick="openImportHistoryModal()" class="px-6 py-3 bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 rounded-xl text-xs font-black uppercase tracking-widest shadow-sm w-full">+ Import History (Sheets)</button>
@@ -601,19 +611,32 @@
         function deleteUser(uid) { if(confirm('Hapus kandidat ini secara permanen?')) { state.users = state.users.filter(x => x.id !== uid); syncToCloud(); closeModal(); renderUserData(); } }
 
         // --- INSTRUCTORS ---
+        function instructorRatingLabel(rating) {
+            if (!rating) return 'Rating not set';
+            const full = String(rating);
+            const match = full.match(/\(([^)]+)\)/);
+            return match ? match[1] : full;
+        }
+        function instructorRatingOptions(selected) {
+            const ratings = [...state.lookups.ratings, 'General / Mandatory Training'];
+            if (selected && !ratings.includes(selected)) ratings.push(selected);
+            return ratings.map(r => `<option value="${r.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" ${selected===r?'selected':''}>${r}</option>`).join('');
+        }
+
         function renderInstructorData() {
             let html = `<div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-bold">Instructors</h2></div><button onclick="openInstructorModal('add')" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase shadow-lg tracking-widest">+ Add</button></div><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
-            state.instructors.forEach(i => { html += `<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100"><h4 class="font-bold text-slate-800 text-sm mb-1">${i.name}</h4><p class="text-[10px] text-slate-400 uppercase font-black mb-2">LOA: ${i.loaNo || '-'}</p><p class="text-[10px] text-blue-500 font-bold mb-4">U: ${i.username || '-'}</p><div class="flex gap-2"><button onclick="openInstructorModal('edit', ${i.id})" class="flex-1 py-2 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-100">Edit</button><button onclick="deleteInstructor(${i.id})" class="py-2 px-3 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg">&times;</button></div></div>`; });
+            state.instructors.forEach(i => { html += `<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100"><h4 class="font-bold text-slate-800 text-sm mb-1">${i.name}</h4><p class="text-[10px] text-slate-400 uppercase font-black mb-2">LOA: ${i.loaNo || '-'}</p><p class="text-[10px] text-indigo-600 font-bold mb-2">RATING: ${instructorRatingLabel(i.rating)}</p><p class="text-[10px] text-blue-500 font-bold mb-4">U: ${i.username || '-'}</p><div class="flex gap-2"><button onclick="openInstructorModal('edit', ${i.id})" class="flex-1 py-2 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-100">Edit</button><button onclick="deleteInstructor(${i.id})" class="py-2 px-3 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg">&times;</button></div></div>`; });
             document.getElementById('dynamic-content').innerHTML = html + `</div>`;
         }
 
         function openInstructorModal(mode, id) {
-            const i = mode === 'edit' ? state.instructors.find(x => x.id === id) : { name: '', loaNo: '', signUrl: '', username: '', password: '' };
+            const i = mode === 'edit' ? state.instructors.find(x => x.id === id) : { name: '', loaNo: '', rating: '', signUrl: '', username: '', password: '' };
             document.getElementById('modal-title').innerText = mode === 'edit' ? "Edit Instructor" : "Add Instructor";
             document.getElementById('modal-body').innerHTML = `
                 <div class="space-y-4">
                     <input type="text" id="in-name" value="${i.name}" class="w-full p-3 border rounded-xl text-sm" placeholder="Full Name">
                     <input type="text" id="in-loa" value="${i.loaNo || ''}" class="w-full p-3 border rounded-xl text-sm" placeholder="LOA No.">
+                    <div><label for="in-rating" class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Instructor Rating</label><select id="in-rating" class="w-full p-3 border rounded-xl text-sm font-bold text-slate-700"><option value="">-- Select Rating --</option>${instructorRatingOptions(i.rating || '')}</select></div>
                     <div class="pt-2 border-t border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Login Credentials</p><input type="text" id="in-user" value="${i.username || ''}" class="w-full p-3 border rounded-xl text-sm mb-2" placeholder="Username (Instruktur)"><input type="text" id="in-pass" value="${i.password || ''}" class="w-full p-3 border rounded-xl text-sm" placeholder="Password"></div>
                     <div class="pt-2 border-t border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 mt-2">Signature Code</p><div id="inst-sign-preview-box" class="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl mb-3 flex items-center justify-center p-2 overflow-hidden"></div><textarea id="in-sign" oninput="updateSignPreview(this.value, 'inst-sign-preview-box')" rows="2" class="w-full p-3 border border-slate-200 rounded-xl text-xs font-mono"></textarea></div>
                 </div>`;
@@ -623,13 +646,13 @@
         }
 
         function saveInstructor(id) {
-            const n = document.getElementById('in-name').value, l = document.getElementById('in-loa').value, s = document.getElementById('in-sign').value, u = document.getElementById('in-user').value, p = document.getElementById('in-pass').value;
-            if (!n || !l || !u || !p) return alert("Lengkapi data Nama, LOA, Username, dan Password!");
+            const n = document.getElementById('in-name').value, l = document.getElementById('in-loa').value, s = document.getElementById('in-sign').value, u = document.getElementById('in-user').value, p = document.getElementById('in-pass').value, rating = document.getElementById('in-rating').value;
+            if (!n || !l || !u || !p || !rating) return alert("Lengkapi Nama, LOA, Rating, Username, dan Password!");
             const others = id ? state.instructors.filter(x => x.id !== id) : state.instructors;
             if (others.some(x => x.username === u) || state.users.some(x => x.username === u) || u === 'superadmin') return alert("Username sudah digunakan!");
 
-            if (id) { const i = state.instructors.find(x => x.id === id); i.name = n; i.loaNo = l; i.signUrl = s; i.username = u; i.password = p; } 
-            else { state.instructors.push({ id: Date.now(), name: n, loaNo: l, rating: 'B412', signUrl: s, username: u, password: p }); }
+            if (id) { const i = state.instructors.find(x => x.id === id); i.name = n; i.loaNo = l; i.rating = rating; i.signUrl = s; i.username = u; i.password = p; } 
+            else { state.instructors.push({ id: Date.now(), name: n, loaNo: l, rating: rating, signUrl: s, username: u, password: p }); }
             syncToCloud(); closeModal(); renderInstructorData();
         }
         function deleteInstructor(id) { if(confirm('Hapus instruktur?')) { state.instructors = state.instructors.filter(x => x.id !== id); syncToCloud(); renderInstructorData(); } }
@@ -817,7 +840,7 @@
                     <div class="flex p-1 bg-slate-100 rounded-2xl"><button onclick="toggleAssignCat('type')" id="tab-t" class="flex-1 py-2.5 text-[9px] font-black rounded-xl bg-white text-blue-600 shadow-sm">TYPE RATING</button><button onclick="toggleAssignCat('mand')" id="tab-m" class="flex-1 py-2.5 text-[9px] font-black rounded-xl text-slate-500">MANDATORY</button></div>
                     <div id="col-t"><select id="as-t" class="w-full p-3 border rounded-xl text-sm font-bold text-slate-700 outline-none"><option value="">-- Choose Type Rating Exam --</option>${state.questionSets.filter(q=>q.category==='Type Rating').map(q=>`<option value="${q.title}">${q.title}</option>`).join('')}</select></div>
                     <div id="col-m" class="hidden"><select id="as-m" class="w-full p-3 border rounded-xl text-sm font-bold text-slate-700 outline-none"><option value="">-- Choose Mandatory Exam --</option>${state.questionSets.filter(q=>q.category==='Mandatory Training').map(q=>`<option value="${q.title}">${q.title}</option>`).join('')}</select></div>
-                    <div><select id="as-inst" class="w-full p-3 border rounded-xl text-sm italic font-medium text-slate-600 outline-none"><option value="">-- Select Instructor --</option>${state.instructors.map(i=>`<option value="${i.name} (${i.loaNo})">${i.name} (${i.loaNo})</option>`).join('')}</select></div>
+                    <div><select id="as-inst" class="w-full p-3 border rounded-xl text-sm italic font-medium text-slate-600 outline-none"><option value="">-- Select Instructor --</option>${state.instructors.map(i=>`<option value="${i.name} (${i.loaNo})">${i.name} — ${instructorRatingLabel(i.rating)} (LOA: ${i.loaNo})</option>`).join('')}</select></div>
                     <div class="grid grid-cols-2 gap-4">
                         <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Exam Date</label><input type="date" id="as-date" class="w-full p-3 border rounded-xl text-sm"></div>
                         <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-2 tracking-widest">Exam Time</label><input type="time" id="as-time" class="w-full p-3 border rounded-xl text-sm"></div>
@@ -871,6 +894,132 @@
         }
         function deleteAssign(id) { if(confirm('Delete assignment?')) { state.assignments = state.assignments.filter(x => x.id !== id); syncToCloud(); renderAssignment(); } }
 
+        // --- SUPERADMIN HISTORY EDITOR ---
+        const escapeHistoryHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        function requireHistorySuperadmin() {
+            if (!state.currentUser || state.currentUser.role !== 'superadmin') {
+                alert('Hanya Superadmin yang dapat mengedit History.');
+                return false;
+            }
+            return true;
+        }
+        function getHistoryQuestions(a) {
+            if (Array.isArray(a.questionSnapshot) && a.questionSnapshot.length) return a.questionSnapshot;
+            const set = state.questionSets.find(q => q.title === a.examTitle);
+            return set && Array.isArray(set.questions) ? set.questions : [];
+        }
+        function getHistoryGrade(score) {
+            return score === 100 ? 'PERFECT' : score >= 86 ? 'EXCELLENT' : score >= 75 ? 'PASSED' : 'FAILED';
+        }
+        function renderSuperadminHistory() {
+            if (!requireHistorySuperadmin()) return;
+            const completed = state.assignments.filter(a => a.status === 'COMPLETED')
+                .slice().sort((a,b) => String(b.examDate || '').localeCompare(String(a.examDate || '')));
+            document.getElementById('dynamic-content').innerHTML = `
+                <div class="max-w-6xl mx-auto page-fade">
+                    <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+                        <div><h2 class="text-xl font-black text-slate-800 uppercase">Superadmin — Edit Exam History</h2><p class="text-xs text-slate-500 mt-1">Perubahan disimpan ke Firebase dan ditampilkan pada akun Admin serta User.</p></div>
+                        <button onclick="renderSuperAdmin()" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-black">← System Config</button>
+                    </div>
+                    <input id="history-edit-search" oninput="filterSuperadminHistory(this.value)" placeholder="Cari nama candidate atau judul ujian..." class="w-full p-3 border rounded-xl mb-4 text-sm bg-white" />
+                    <div class="bg-white border rounded-2xl overflow-x-auto"><table class="w-full text-left min-w-[780px]">
+                    <thead class="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th class="p-4">Candidate</th><th class="p-4">Exam</th><th class="p-4">Date / Time</th><th class="p-4">Score</th><th class="p-4 text-right">Action</th></tr></thead>
+                    <tbody id="history-edit-rows">${completed.length ? completed.map(a => `<tr class="border-t history-edit-row" data-search="${escapeHistoryHTML((a.userName || '') + ' ' + (a.examTitle || '')).toLowerCase()}"><td class="p-4 text-sm font-bold">${escapeHistoryHTML(a.userName)}</td><td class="p-4 text-xs">${escapeHistoryHTML(a.examTitle)}</td><td class="p-4 text-xs">${escapeHistoryHTML(formatDisplayDate(a.examDate))}<div class="text-slate-400">${escapeHistoryHTML(a.examTime || '-')}</div></td><td class="p-4 font-bold">${a.score ?? '-'}%</td><td class="p-4 text-right"><button onclick="openSuperadminHistoryEdit(${JSON.stringify(a.id)})" class="bg-blue-600 text-white rounded-lg px-4 py-2 text-xs font-bold">Edit</button></td></tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400">No completed history found.</td></tr>'}</tbody>
+                    </table></div>
+                </div>`;
+        }
+        function filterSuperadminHistory(value) {
+            const key = String(value || '').trim().toLowerCase();
+            document.querySelectorAll('.history-edit-row').forEach(row => {
+                row.style.display = row.dataset.search.includes(key) ? '' : 'none';
+            });
+        }
+        function openSuperadminHistoryEdit(assignmentId) {
+            if (!requireHistorySuperadmin()) return;
+            const a = state.assignments.find(x => String(x.id) === String(assignmentId) && x.status === 'COMPLETED');
+            if (!a) return alert('History tidak ditemukan.');
+            const qs = getHistoryQuestions(a);
+            const parsed = String(a.duration || '').match(/(?:(\d+)h)?\s*(?:(\d+)m)?/i);
+            const h = parsed && parsed[1] ? Number(parsed[1]) : 0;
+            const m = parsed && parsed[2] ? Number(parsed[2]) : 0;
+            const currentInstructor = state.instructors.find(i => String(i.id) === String(a.instructorId))
+                || state.instructors.find(i => `${i.name} (${i.loaNo})` === a.instructor);
+            const instructorOptions = state.instructors.map(i => {
+                return `<option value="${escapeHistoryHTML(i.id)}" ${currentInstructor && String(i.id) === String(currentInstructor.id) ? 'selected' : ''}>${escapeHistoryHTML(i.name)} (${escapeHistoryHTML(i.loaNo)})</option>`;
+            }).join('');
+            const answerRows = qs.map((q, index) => {
+                const current = a.answers ? a.answers[q.id] : '';
+                return `<div class="p-3 border border-slate-200 rounded-xl bg-slate-50">
+                    <div class="text-xs font-bold text-slate-800 mb-2">Q${index + 1}. ${escapeHistoryHTML(q.text)}</div>
+                    <select data-question-id="${escapeHistoryHTML(q.id)}" class="history-edit-answer w-full p-2 bg-white border rounded-lg text-xs">
+                      <option value="" ${!current ? 'selected' : ''}>— No Answer —</option>
+                      ${['A','B','C','D'].filter(k => q.options && q.options[k]).map(k => `<option value="${k}" ${current===k?'selected':''}>${k}. ${escapeHistoryHTML(q.options[k])}</option>`).join('')}
+                    </select><p class="text-[10px] text-green-700 mt-1">Correct answer: ${escapeHistoryHTML(q.answer)}</p></div>`;
+            }).join('');
+            document.getElementById('modal-title').innerText = 'Superadmin — Edit History';
+            document.getElementById('modal-body').innerHTML = `<div class="space-y-4">
+                <div class="bg-blue-50 p-3 rounded-xl"><strong class="text-xs">${escapeHistoryHTML(a.userName)} — ${escapeHistoryHTML(a.examTitle)}</strong><p class="text-[10px] text-blue-700 mt-1">Original score: ${a.score ?? '-'}% · Result will be recalculated from answers.</p></div>
+                <div><label class="text-xs font-bold block mb-1">Examiner / Instructor</label><select id="he-inst" class="w-full p-3 border rounded-xl text-sm"><option value="">— Select Instructor —</option>${instructorOptions}<option value="__custom" ${!currentInstructor ? 'selected' : ''}>Manual / historical name</option></select><input id="he-inst-custom" value="${escapeHistoryHTML(a.instructor || '')}" class="w-full p-3 border rounded-xl mt-2 text-sm" placeholder="Name (LOA) if not listed" /><p class="text-[10px] text-slate-500 mt-1">Pilih nama dari daftar untuk memakai tanda tangan terbaru, atau pilih Manual bila tidak ada.</p></div>
+                <div class="grid grid-cols-2 gap-3"><div><label class="text-xs font-bold block mb-1">Exam Date</label><input type="date" id="he-date" value="${escapeHistoryHTML(a.examDate || '')}" class="w-full p-3 border rounded-xl text-sm" /></div><div><label class="text-xs font-bold block mb-1">Exam Time</label><input type="time" id="he-time" value="${escapeHistoryHTML(a.examTime || '')}" class="w-full p-3 border rounded-xl text-sm" /></div></div>
+                <div class="grid grid-cols-2 gap-3"><div><label class="text-xs font-bold block mb-1">Duration (hours)</label><input type="number" min="0" max="100" id="he-hours" value="${h}" class="w-full p-3 border rounded-xl text-sm" /></div><div><label class="text-xs font-bold block mb-1">Duration (minutes)</label><input type="number" min="0" max="59" id="he-minutes" value="${m}" class="w-full p-3 border rounded-xl text-sm" /></div></div>
+                <div class="border-t pt-4"><h4 class="font-black text-sm mb-2">Edit Candidate Answers (${qs.length} questions)</h4>${qs.length ? `<div class="space-y-3">${answerRows}</div>` : '<p class="text-xs text-amber-700 bg-amber-50 p-3 rounded-lg">Question bank/snapshot tidak tersedia untuk history ini. Jawaban tidak dapat diedit; score yang ada tetap dipertahankan.</p>'}</div>
+                ${Array.isArray(a.historyRevisions) && a.historyRevisions.length ? `<div class="border-t pt-3"><h4 class="text-xs font-black mb-2">Revision Audit Log</h4>${a.historyRevisions.slice().reverse().slice(0,10).map(r => `<p class="text-[10px] text-slate-500 py-1">${escapeHistoryHTML(r.at)} — ${escapeHistoryHTML(r.by)}: ${escapeHistoryHTML(r.detail)}</p>`).join('')}</div>` : ''}
+            </div>`;
+            document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button id="he-save" onclick="saveSuperadminHistoryEdit(${JSON.stringify(a.id)})" class="px-6 py-3 bg-green-600 text-white rounded-xl text-xs font-black">Save Changes</button>`;
+            document.getElementById('modal-container').classList.remove('hidden');
+        }
+        async function saveSuperadminHistoryEdit(assignmentId) {
+            if (!requireHistorySuperadmin()) return;
+            const a = state.assignments.find(x => String(x.id) === String(assignmentId) && x.status === 'COMPLETED');
+            if (!a) return alert('History tidak ditemukan.');
+            const date = document.getElementById('he-date').value;
+            const time = document.getElementById('he-time').value;
+            const hours = Number(document.getElementById('he-hours').value);
+            const mins = Number(document.getElementById('he-minutes').value);
+            const instId = document.getElementById('he-inst').value;
+            const chosen = state.instructors.find(i => String(i.id) === instId);
+            const instructor = chosen ? `${chosen.name} (${chosen.loaNo})` : document.getElementById('he-inst-custom').value.trim();
+            if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !time || !/^\d{2}:\d{2}$/.test(time) || !instructor) return alert('Isi tanggal, jam dan Instructor/Examiner dengan benar.');
+            if (!Number.isInteger(hours) || !Number.isInteger(mins) || hours < 0 || hours > 100 || mins < 0 || mins > 59 || hours * 60 + mins <= 0) return alert('Durasi harus lebih dari 0 dan menit 0–59.');
+            const qs = getHistoryQuestions(a);
+            const nextAnswers = { ...(a.answers || {}) };
+            document.querySelectorAll('.history-edit-answer').forEach(select => {
+                if (select.value) nextAnswers[select.dataset.questionId] = select.value;
+                else delete nextAnswers[select.dataset.questionId];
+            });
+            const correct = qs.filter(q => nextAnswers[q.id] === q.answer).length;
+            const nextScore = qs.length ? Math.round(correct * 100 / qs.length) : a.score;
+            const nextGrade = qs.length ? getHistoryGrade(nextScore) : a.grade;
+            const old = { instructor: a.instructor, examDate: a.examDate, examTime: a.examTime, duration: a.duration, score: a.score, answers: a.answers || {} };
+            const details = [];
+            if (old.instructor !== instructor) details.push('examiner');
+            if (old.examDate !== date) details.push('date');
+            if (old.examTime !== time) details.push('time');
+            if (old.duration !== `${hours}h ${mins}m`) details.push('duration');
+            if (JSON.stringify(old.answers) !== JSON.stringify(nextAnswers)) details.push('answers');
+            if (old.score !== nextScore) details.push(`score ${old.score}% → ${nextScore}%`);
+            if (!details.length) return alert('Tidak ada perubahan data.');
+            if (!confirm('Simpan perubahan History ujian ini? Koreksi akan tampil pada Admin dan User.')) return;
+            const btn = document.getElementById('he-save'); btn.disabled = true; btn.textContent = 'Saving...';
+            const previous = structuredClone(a);
+            a.instructor = instructor; a.instructorId = chosen ? chosen.id : null;
+            a.instructorSignUrl = chosen ? chosen.signUrl || '' : '';
+            a.examDate = date; a.examTime = time; a.duration = `${hours}h ${mins}m`;
+            if (qs.length) { a.answers = nextAnswers; a.score = nextScore; a.grade = nextGrade; }
+            if (!Array.isArray(a.historyRevisions)) a.historyRevisions = [];
+            a.historyRevisions.push({ at: new Date().toISOString(), by: 'Superadmin', detail: details.join(', '), before: old, after: { instructor, date, time, duration: a.duration, score: a.score, answers: a.answers || {} } });
+            try {
+                // Persist in the shared Firestore document; onSnapshot refreshes Admin/User live.
+                await syncToCloud(true);
+                closeModal(); renderSuperadminHistory();
+                alert('History berhasil diperbarui dan disinkronkan ke Firebase.');
+            } catch (error) {
+                Object.keys(a).forEach(k => delete a[k]); Object.assign(a, previous);
+                btn.disabled = false; btn.textContent = 'Save Changes';
+                alert('Gagal menyimpan History ke Firebase: ' + (error.message || error));
+            }
+        }
+
         // --- HISTORY ---
         function renderHistoryData() {
             const completed = state.assignments.filter(a => a.status === 'COMPLETED').sort((a,b) => new Date(b.examDate) - new Date(a.examDate));
@@ -887,13 +1036,14 @@
 
         function viewExamDetails(assignmentId) {
             const a = state.assignments.find(x => x.id === assignmentId);
-            if (!a) return;
+            if (!a || a.status !== 'COMPLETED') return;
+            if (!state.isAdmin && String(state.currentUser?.id) !== String(a.userId)) return alert('Access denied.');
             const u = state.users.find(x => x.id === a.userId);
             if (!u) return;
 
             const tL = a.examTitle.toLowerCase(), term = (tL.includes('initial') || tL.includes('upgrade')) ? 'Trainee' : 'Candidate';
             const iP = a.instructor.split('('), instName = iP[0].trim(), instLOA = iP[2] ? iP[2].replace(')','').trim() : (iP[1] ? iP[1].replace(')','').trim() : '-');
-            const set = state.questionSets.find(q => q.title === a.examTitle), qs = set && set.questions.length > 0 ? set.questions : Array(10).fill({id: 0, text: '...', options: {A: 'A', B: 'B', C: 'C', D: 'D'}, answer: 'C'});
+            const set = state.questionSets.find(q => q.title === a.examTitle), historicalQuestions = getHistoryQuestions(a), qs = historicalQuestions.length ? historicalQuestions : Array(10).fill({id: 0, text: '...', options: {A: 'A', B: 'B', C: 'C', D: 'D'}, answer: 'C'});
             
             const total = qs.length, correct = Math.round((a.score / 100) * total);
             let ansH = '';
@@ -904,7 +1054,7 @@
             }
 
             document.getElementById('modal-title').innerText = "Exam Result Details";
-            document.getElementById('modal-body').innerHTML = `<div class="space-y-6"><div class="bg-white p-6 rounded-2xl border border-slate-200"><h4 class="font-black text-slate-800 uppercase tracking-widest text-xs mb-4 border-b pb-2">${term} INFO</h4><div class="grid grid-cols-2 gap-4 text-sm"><div><span class="text-slate-400 text-[10px] uppercase block">Name</span> <span class="font-bold text-slate-800">${u.name}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Rank</span> <span class="font-bold text-slate-800">${u.rank}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">License</span> <span class="font-bold text-slate-800">${u.license}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Instructor</span> <span class="font-bold text-slate-800">${instName}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Exam Date</span> <span class="font-bold text-slate-800">${formatDisplayDate(a.examDate)}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Duration</span> <span class="font-bold text-slate-800">${a.duration || '-'}</span></div></div></div><div class="bg-white p-6 rounded-2xl border border-slate-200 text-center shadow-inner"><div class="text-5xl font-black ${a.score < 75 ? 'text-red-500' : 'text-green-500'} mb-2">${a.score}%</div><div class="font-bold text-slate-800 text-sm uppercase">${a.grade} - ${correct}/${total} correct</div>${tL.includes('recurrent') ? `<div class="font-black text-xs mt-4 text-green-600 bg-green-50 inline-block px-3 py-1 rounded border border-green-200">CORRECTED TO 100%</div>` : ''}</div><div class="bg-white p-6 rounded-2xl border border-slate-200">${ansH}</div></div>`;
+            document.getElementById('modal-body').innerHTML = `<div class="space-y-6"><div class="bg-white p-6 rounded-2xl border border-slate-200"><h4 class="font-black text-slate-800 uppercase tracking-widest text-xs mb-4 border-b pb-2">${term} INFO</h4><div class="grid grid-cols-2 gap-4 text-sm"><div><span class="text-slate-400 text-[10px] uppercase block">Name</span> <span class="font-bold text-slate-800">${u.name}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Rank</span> <span class="font-bold text-slate-800">${u.rank}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">License</span> <span class="font-bold text-slate-800">${u.license}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Instructor</span> <span class="font-bold text-slate-800">${instName}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Exam Date</span> <span class="font-bold text-slate-800">${formatDisplayDate(a.examDate)}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Exam Time</span> <span class="font-bold text-slate-800">${a.examTime || '-'}</span></div><div><span class="text-slate-400 text-[10px] uppercase block">Duration</span> <span class="font-bold text-slate-800">${a.duration || '-'}</span></div></div></div><div class="bg-white p-6 rounded-2xl border border-slate-200 text-center shadow-inner"><div class="text-5xl font-black ${a.score < 75 ? 'text-red-500' : 'text-green-500'} mb-2">${a.score}%</div><div class="font-bold text-slate-800 text-sm uppercase">${a.grade} - ${correct}/${total} correct</div>${tL.includes('recurrent') ? `<div class="font-black text-xs mt-4 text-green-600 bg-green-50 inline-block px-3 py-1 rounded border border-green-200">CORRECTED TO 100%</div>` : ''}</div><div class="bg-white p-6 rounded-2xl border border-slate-200">${ansH}</div></div>`;
             document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-6 py-2.5 text-xs font-bold text-slate-400 uppercase">Close</button><button onclick="printExamResult(${assignmentId})" class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg">Print PDF</button>`;
             document.getElementById('modal-container').classList.remove('hidden');
         }
@@ -930,7 +1080,7 @@
             const instName = instObj ? instObj.name : requestedName;
             const instLOA = instObj ? (instObj.loaNo || requestedLOA || '-') : (requestedLOA || '-');
             const instSignUrl = instObj ? instObj.signUrl : (a.instructorSignUrl || '');
-            const set = state.questionSets.find(q => q.title === a.examTitle), qs = set && set.questions.length > 0 ? set.questions : Array(10).fill({id: 0, text: '...', options: {A: 'A', B: 'B', C: 'C', D: 'D'}, answer: 'C'});
+            const set = state.questionSets.find(q => q.title === a.examTitle), historicalQuestions = getHistoryQuestions(a), qs = historicalQuestions.length ? historicalQuestions : Array(10).fill({id: 0, text: '...', options: {A: 'A', B: 'B', C: 'C', D: 'D'}, answer: 'C'});
             
             const total = qs.length, correct = Math.round((a.score / 100) * total);
             let ansH = '';
@@ -1031,7 +1181,7 @@
             else {
                 myTasks.forEach(a => {
                     const isDone = a.status === 'COMPLETED', inProg = a.status === 'IN PROGRESS';
-                    html += `<div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col relative group"><div class="flex justify-between items-start mb-4"><span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${isDone?'bg-green-100 text-green-700':inProg?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700'}">${a.status}</span></div><h4 class="text-lg font-black text-slate-900 leading-tight mb-2 pr-4">${a.examTitle}</h4><div class="space-y-1 text-xs text-slate-500 mb-6 flex-1"><p>📅 ${formatDisplayDate(a.examDate)}</p><p>⏰ ${a.examTime || '-'} | ⏳ ${a.duration || '-'}</p></div><div>${isDone ? `<div class="p-3 bg-slate-50 rounded-xl text-center"><p class="text-[10px] font-black text-slate-400 uppercase mb-1">Final Score</p><p class="text-2xl font-black ${a.score >= 75 ? 'text-green-500' : 'text-red-500'}">${a.score}%</p></div>` : `<button onclick="startRealExam(${a.id})" class="w-full py-4 ${inProg ? 'bg-amber-500' : 'bg-blue-600'} text-white rounded-xl text-xs font-black uppercase shadow-lg hover:opacity-90">${inProg ? 'Resume Exam' : 'Start Exam'}</button>`}</div></div>`;
+                    html += `<div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col relative group"><div class="flex justify-between items-start mb-4"><span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${isDone?'bg-green-100 text-green-700':inProg?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700'}">${a.status}</span></div><h4 class="text-lg font-black text-slate-900 leading-tight mb-2 pr-4">${a.examTitle}</h4><div class="space-y-1 text-xs text-slate-500 mb-6 flex-1"><p>📅 ${formatDisplayDate(a.examDate)}</p><p>⏰ ${a.examTime || '-'} | ⏳ ${a.duration || '-'}</p></div><div>${isDone ? `<div class="p-3 bg-slate-50 rounded-xl text-center"><p class="text-[10px] font-black text-slate-400 uppercase mb-1">Final Score</p><p class="text-2xl font-black ${a.score >= 75 ? 'text-green-500' : 'text-red-500'}">${a.score}%</p><button onclick="viewExamDetails(${a.id})" class="mt-2 text-[10px] font-black text-blue-600 underline">View Exam Result</button></div>` : `<button onclick="startRealExam(${a.id})" class="w-full py-4 ${inProg ? 'bg-amber-500' : 'bg-blue-600'} text-white rounded-xl text-xs font-black uppercase shadow-lg hover:opacity-90">${inProg ? 'Resume Exam' : 'Start Exam'}</button>`}</div></div>`;
                 });
             }
             document.getElementById('dynamic-content').innerHTML = html + `</div>`;
@@ -1087,6 +1237,7 @@
             const ex = window.activeExam; clearInterval(ex.timerId); let cc = 0; ex.questions.forEach(q => { if (ex.answers[q.id] === q.answer) cc++; });
             const score = Math.round((cc / ex.questions.length) * 100); let grade = score === 100 ? 'PERFECT' : score >= 86 ? 'EXCELLENT' : score >= 75 ? 'PASSED' : 'FAILED';
             ex.assignment.status = 'COMPLETED'; ex.assignment.score = score; ex.assignment.grade = grade; ex.assignment.answers = ex.answers;
+            ex.assignment.questionSnapshot = ex.questions.map(q => ({ id: q.id, section: q.section, text: q.text, options: { ...q.options }, answer: q.answer }));
             syncToCloud(); renderExamResultUserView(ex, score, grade, cc);
         }
 
