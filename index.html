@@ -94,11 +94,11 @@
             .print-summary-item.correct { color: green !important; }
             .print-summary-item.wrong { color: red !important; }
             
-            .print-signatures { margin-top: 50px; width: 100%; display: flex; justify-content: space-between; text-align: center; page-break-inside: avoid; }
-            .print-sig-box { width: 250px; display: flex; flex-direction: column; align-items: center; }
+            .print-signatures { margin-top: 35px; width: 100%; display: table; table-layout: fixed; text-align: center; page-break-inside: avoid !important; break-inside: avoid !important; }
+            .print-sig-box { width: 50%; display: table-cell; vertical-align: top; text-align: center; padding: 0 8px; }
             .print-sig-title { font-size: 11pt; margin-bottom: 5px; }
-            .print-sig-img { height: 80px; width: 100%; display: flex; justify-content: center; align-items: center; margin-bottom: 5px; }
-            .print-sig-img img { max-height: 100%; max-width: 100%; object-fit: contain; }
+            .print-sig-img { height: 80px; width: 100%; text-align: center; margin-bottom: 5px; }
+            .print-sig-img img { display: inline-block !important; height: auto !important; max-height: 78px !important; max-width: 220px !important; width: auto !important; object-fit: contain !important; visibility: visible !important; }
             .print-sig-name { font-weight: bold; font-size: 11pt; text-transform: uppercase; text-decoration: underline; margin-bottom: 2px; }
             .print-sig-detail { font-size: 10pt; }
         }
@@ -866,7 +866,7 @@
             let durStr = ''; const h = document.getElementById('as-dur-h').value, m = document.getElementById('as-dur-m').value;
             if (h) durStr += `${h}h `; if (m) durStr += `${m}m`; durStr = durStr.trim();
 
-            cbx.forEach(c => { state.assignments.push({ id: Date.now() + Math.random(), userId: Number(c.value), userName: c.dataset.name, examTitle: exTitle, instructor: inst, assignedDate: new Date().toISOString().split('T')[0], examDate: eDate, examTime: document.getElementById('as-time').value, duration: durStr, status: 'NOT STARTED', score: null, grade: null }); });
+            cbx.forEach(c => { state.assignments.push({ id: Date.now() + Math.random(), userId: Number(c.value), userName: c.dataset.name, examTitle: exTitle, instructor: inst, instructorId: (state.instructors.find(i => `${i.name} (${i.loaNo})` === inst) || {}).id || null, assignedDate: new Date().toISOString().split('T')[0], examDate: eDate, examTime: document.getElementById('as-time').value, duration: durStr, status: 'NOT STARTED', score: null, grade: null }); });
             syncToCloud(); closeModal(); renderAssignment();
         }
         function deleteAssign(id) { if(confirm('Delete assignment?')) { state.assignments = state.assignments.filter(x => x.id !== id); syncToCloud(); renderAssignment(); } }
@@ -886,8 +886,10 @@
         }
 
         function viewExamDetails(assignmentId) {
-            const a = state.assignments.find(x => x.id === assignmentId), u = state.users.find(x => x.id === a.userId);
-            if(!a || !u) return;
+            const a = state.assignments.find(x => x.id === assignmentId);
+            if (!a) return;
+            const u = state.users.find(x => x.id === a.userId);
+            if (!u) return;
 
             const tL = a.examTitle.toLowerCase(), term = (tL.includes('initial') || tL.includes('upgrade')) ? 'Trainee' : 'Candidate';
             const iP = a.instructor.split('('), instName = iP[0].trim(), instLOA = iP[2] ? iP[2].replace(')','').trim() : (iP[1] ? iP[1].replace(')','').trim() : '-');
@@ -908,12 +910,26 @@
         }
 
         function printExamResult(assignmentId) {
-            const a = state.assignments.find(x => x.id === assignmentId), u = state.users.find(x => x.id === a.userId);
-            if(!a || !u) return;
+            const a = state.assignments.find(x => x.id === assignmentId);
+            if (!a) return;
+            const u = state.users.find(x => x.id === a.userId);
+            if (!u) return;
 
             const tL = a.examTitle.toLowerCase(), term = (tL.includes('initial') || tL.includes('upgrade')) ? 'Trainee' : 'Candidate';
-            const iP = a.instructor.split('('), instName = iP[0].trim(), instLOA = iP[2] ? iP[2].replace(')','').trim() : (iP[1] ? iP[1].replace(')','').trim() : '-');
-            const instObj = state.instructors.find(x => x.name === instName), instSignUrl = instObj ? instObj.signUrl : '';
+            // Instructor disimpan sebagai "Nama (LOA)". Utamakan ID jika tersedia,
+            // lalu cocokkan LOA/nama secara toleran terhadap spasi dan kapitalisasi.
+            const assignedInstructor = String(a.instructor || '').trim();
+            const normalizeText = value => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
+            const instructorMatch = assignedInstructor.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+            const requestedName = instructorMatch ? instructorMatch[1].trim() : assignedInstructor;
+            const requestedLOA = instructorMatch ? instructorMatch[2].trim() : '';
+            const instObj = state.instructors.find(x => a.instructorId != null && String(x.id) === String(a.instructorId))
+                || state.instructors.find(x => normalizeText(x.name) === normalizeText(requestedName) && (!requestedLOA || normalizeText(x.loaNo) === normalizeText(requestedLOA)))
+                || state.instructors.find(x => normalizeText(x.name) === normalizeText(requestedName))
+                || state.instructors.find(x => requestedLOA && normalizeText(x.loaNo) === normalizeText(requestedLOA));
+            const instName = instObj ? instObj.name : requestedName;
+            const instLOA = instObj ? (instObj.loaNo || requestedLOA || '-') : (requestedLOA || '-');
+            const instSignUrl = instObj ? instObj.signUrl : (a.instructorSignUrl || '');
             const set = state.questionSets.find(q => q.title === a.examTitle), qs = set && set.questions.length > 0 ? set.questions : Array(10).fill({id: 0, text: '...', options: {A: 'A', B: 'B', C: 'C', D: 'D'}, answer: 'C'});
             
             const total = qs.length, correct = Math.round((a.score / 100) * total);
@@ -926,12 +942,22 @@
 
             const cyc = (tL.includes('recurrent') && set && set.cycle && set.cycle !== 'None') ? set.cycle : null;
 
-            const formatSignature = (signData) => {
-                if (!signData) return '';
-                const str = signData.trim();
-                if (str.startsWith('<')) return str; 
-                if (str.startsWith('http') || str.startsWith('data:image')) return `<img src="${str}" alt="Signature" crossorigin="anonymous" />`;
-                return ''; 
+            // Menerima URL biasa, data URI, kode <img>, dan Google Drive sharing URL.
+            // Hanya hasilkan <img> agar browser print tidak mengabaikan HTML embed lain.
+            const formatSignature = signData => {
+                let raw = String(signData || '').trim();
+                if (!raw) return '';
+                const tagMatch = raw.match(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i)
+                    || raw.match(/<img\b[^>]*\bsrc\s*=\s*([^\s>]+)/i);
+                if (tagMatch) raw = tagMatch[1];
+                raw = raw.replace(/&amp;/g, '&').trim();
+                const driveId = raw.match(/drive\.google\.com\/file\/d\/([\w-]+)/i)
+                    || raw.match(/drive\.google\.com\/open\?id=([\w-]+)/i)
+                    || raw.match(/[?&]id=([\w-]+)/i);
+                if (driveId) raw = 'https://lh3.googleusercontent.com/d/' + driveId[1];
+                if (!/^https?:\/\//i.test(raw) && !/^data:image\/(png|jpeg|jpg|gif|webp);base64,/i.test(raw)) return '';
+                const safeSrc = raw.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                return `<img src="${safeSrc}" alt="Signature" loading="eager" referrerpolicy="no-referrer" />`;
             };
 
             const userSignatureHTML = formatSignature(u.signUrl);
@@ -952,51 +978,49 @@
                     <div class="print-signatures"><div class="print-sig-box"><div class="print-sig-title">${term} Signature</div><div class="print-sig-img">${userSignatureHTML}</div><div class="print-sig-name">${u.name}</div><div class="print-sig-detail">${u.license || '-'}</div></div><div class="print-sig-box"><div class="print-sig-title">Examiner Signature</div><div class="print-sig-img">${instSignatureHTML}</div><div class="print-sig-name">${instName}</div><div class="print-sig-detail">${instLOA || '-'}</div></div></div>
                 </div>`;
             
-            // Logika Pre-loading: Tunggu semua gambar selesai dimuat sebelum window.print()
+            // Tunggu gambar selesai dimuat dan selesai didekode sebelum membuka print.
+            // Jangan kosongkan print-area sesaat setelah window.print(), karena di
+            // Safari/iPhone dialog Save as PDF dapat masih membaca DOM yang sama.
             const printArea = document.getElementById('print-area');
-            const images = printArea.getElementsByTagName('img');
-            let loadedCount = 0;
-
-            if (images.length === 0) {
-                // Jika tidak ada gambar sama sekali, langsung print
-                executePrint();
-            } else {
-                // Beri indikator loading (opsional, memanfaatkan console log)
-                console.log(`Waiting for ${images.length} images to load for PDF...`);
-                
-                // Set timeout maksimal 3 detik. Jika gambar gagal dimuat (misal link mati), 
-                // tetap paksa print agar sistem tidak hang.
-                const timeoutId = setTimeout(() => {
-                    console.warn("Image load timeout. Forcing print dialog.");
-                    executePrint();
-                }, 3000);
-
-                for (let i = 0; i < images.length; i++) {
-                    if (images[i].complete) {
-                        checkAllLoaded();
-                    } else {
-                        images[i].onload = checkAllLoaded;
-                        images[i].onerror = checkAllLoaded; // Jika error/gagal load, tetap hitung agar tidak macet
+            const images = Array.from(printArea.querySelectorAll('img'));
+            const imageReady = img => new Promise(resolve => {
+                if (img.complete) return resolve(img.naturalWidth > 0);
+                let settled = false;
+                const finish = ok => {
+                    if (settled) return;
+                    settled = true;
+                    img.removeEventListener('load', success);
+                    img.removeEventListener('error', failure);
+                    resolve(ok);
+                };
+                const success = () => finish(img.naturalWidth > 0);
+                const failure = () => finish(false);
+                img.addEventListener('load', success, { once: true });
+                img.addEventListener('error', failure, { once: true });
+                if (img.complete) finish(img.naturalWidth > 0);
+            });
+            const withTimeout = (promise, ms) => Promise.race([
+                promise,
+                new Promise(resolve => setTimeout(() => resolve(false), ms))
+            ]);
+            Promise.all(images.map(img => withTimeout(imageReady(img), 12000))).then(async results => {
+                for (let index = 0; index < images.length; index++) {
+                    if (results[index] && images[index].decode) {
+                        try { await withTimeout(images[index].decode().then(() => true).catch(() => false), 2000); }
+                        catch (error) { /* Decoding failed; still allow printing. */ }
                     }
                 }
-
-                function checkAllLoaded() {
-                    loadedCount++;
-                    if (loadedCount === images.length) {
-                        clearTimeout(timeoutId); // Batalkan pemaksaan timeout
-                        executePrint();
-                    }
+                const instructorImage = printArea.querySelector('.print-sig-box:last-child .print-sig-img img');
+                if (!instSignatureHTML) {
+                    console.warn('Instructor signature is empty or instructor data did not match:', assignedInstructor);
+                } else if (instructorImage && !instructorImage.naturalWidth) {
+                    console.warn('Instructor signature image could not be loaded. Check the image URL and public access permissions.');
+                    alert('Gambar tanda tangan Instructor/Examiner gagal dimuat. Periksa Signature Code dan izin akses gambar pada menu Instructor. PDF tetap dapat dicetak.');
                 }
-            }
-
-            function executePrint() {
-                // Beri sedikit jeda 100ms agar browser merender elemen ke DOM secara sempurna
-                setTimeout(() => {
-                    window.print();
-                    // Bersihkan print-area setelah print dialog ditutup
-                    setTimeout(() => { document.getElementById('print-area').innerHTML = ''; }, 1000);
-                }, 100);
-            }
+                // Satu kesempatan untuk layout akhir sebelum browser membuat PDF.
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                window.print();
+            });
         }
 
         // --- USER PORTAL ---
@@ -1062,20 +1086,9 @@
             if (force !== true && !confirm("Kumpulkan jawaban sekarang?")) return;
             const ex = window.activeExam; clearInterval(ex.timerId); let cc = 0; ex.questions.forEach(q => { if (ex.answers[q.id] === q.answer) cc++; });
             const score = Math.round((cc / ex.questions.length) * 100); let grade = score === 100 ? 'PERFECT' : score >= 86 ? 'EXCELLENT' : score >= 75 ? 'PASSED' : 'FAILED';
-            
-            // MENCEGAH DATA HILANG: Cari referensi assignment terbaru di memory sebelum menyimpan jawaban
-            const currentAssignment = state.assignments.find(a => a.id === ex.assignment.id);
-            if (currentAssignment) {
-                currentAssignment.status = 'COMPLETED'; currentAssignment.score = score; currentAssignment.grade = grade; currentAssignment.answers = ex.answers;
-                ex.assignment = currentAssignment;
-            } else {
-                ex.assignment.status = 'COMPLETED'; ex.assignment.score = score; ex.assignment.grade = grade; ex.assignment.answers = ex.answers;
-            }
-            
+            ex.assignment.status = 'COMPLETED'; ex.assignment.score = score; ex.assignment.grade = grade; ex.assignment.answers = ex.answers;
             syncToCloud(); renderExamResultUserView(ex, score, grade, cc);
         }
-
-        function closeExam() { window.activeExam = null; renderUserPortal(); }
 
         function renderExamResultUserView(ex, score, grade, cc) {
             const isRec = ex.assignment.examTitle.toLowerCase().includes('recurrent'); let sCl = score === 100 ? "text-gold" : score >= 75 ? "text-green-500" : "text-red-500"; let ansH = '';
@@ -1084,7 +1097,7 @@
                 if(ua === q.answer) { ansH += `<div class="mb-3 p-5 bg-green-50 border border-green-100 rounded-xl"><p class="font-bold text-sm text-slate-800 mb-2">Q${idx + 1}: ${q.text}</p><p class="text-xs font-bold text-green-600">${q.answer}. ${q.options[q.answer]} ✓</p></div>`; } 
                 else { ansH += `<div class="mb-3 p-5 bg-red-50 border border-red-100 rounded-xl"><p class="font-bold text-sm text-slate-800 mb-2">Q${idx + 1}: ${q.text}</p><p class="text-xs font-bold text-red-500 mb-2">${ua ? ua + '. ' + q.options[ua] : 'No Answer'} ✗</p><p class="text-[10px] font-bold text-green-600">Correct: ${q.answer}. ${q.options[q.answer]}</p></div>`; }
             });
-            document.getElementById('dynamic-content').innerHTML = `<div class="max-w-3xl mx-auto space-y-6 page-fade"><div class="bg-dark-card p-8 rounded-3xl text-center border border-slate-700 relative overflow-hidden"><h2 class="text-white text-sm font-black uppercase mb-4 relative z-10">EXAMINATION COMPLETED</h2><div class="text-7xl font-black ${sCl} mb-4 relative z-10">${score}%</div><div class="inline-block px-4 py-1 rounded-full ${score >= 75 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'} font-bold text-sm uppercase mb-2 relative z-10">${grade}</div><p class="text-slate-400 text-xs font-medium relative z-10">${cc} correct out of ${ex.questions.length}</p>${isRec ? `<p class="mt-4 text-green-400 font-bold text-xs uppercase relative z-10 border border-green-500/30 inline-block px-3 py-1 rounded bg-green-500/10">CORRECTED TO 100%</p>` : ''}</div><div class="bg-white rounded-3xl p-8"><h3 class="text-lg font-black text-slate-800 uppercase mb-6 border-b border-slate-100 pb-4">Detailed Review</h3><div class="space-y-2">${ansH}</div></div><div class="text-center pt-4"><button onclick="closeExam()" class="px-10 py-4 bg-slate-900 hover:bg-slate-800 transition-colors text-white rounded-xl text-sm font-black uppercase shadow-xl">Back to Dashboard</button></div></div>`;
+            document.getElementById('dynamic-content').innerHTML = `<div class="max-w-3xl mx-auto space-y-6 page-fade"><div class="bg-dark-card p-8 rounded-3xl text-center border border-slate-700 relative overflow-hidden"><h2 class="text-white text-sm font-black uppercase mb-4 relative z-10">EXAMINATION COMPLETED</h2><div class="text-7xl font-black ${sCl} mb-4 relative z-10">${score}%</div><div class="inline-block px-4 py-1 rounded-full ${score >= 75 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'} font-bold text-sm uppercase mb-2 relative z-10">${grade}</div><p class="text-slate-400 text-xs font-medium relative z-10">${cc} correct out of ${ex.questions.length}</p>${isRec ? `<p class="mt-4 text-green-400 font-bold text-xs uppercase relative z-10 border border-green-500/30 inline-block px-3 py-1 rounded bg-green-500/10">CORRECTED TO 100%</p>` : ''}</div><div class="bg-white rounded-3xl p-8"><h3 class="text-lg font-black text-slate-800 uppercase mb-6 border-b border-slate-100 pb-4">Detailed Review</h3><div class="space-y-2">${ansH}</div></div><div class="text-center pt-4"><button onclick="renderUserPortal()" class="px-10 py-4 bg-slate-900 hover:bg-slate-800 transition-colors text-white rounded-xl text-sm font-black uppercase shadow-xl">Back to Dashboard</button></div></div>`;
         }
 
         function closeModal() { document.getElementById('modal-container').classList.add('hidden'); }
