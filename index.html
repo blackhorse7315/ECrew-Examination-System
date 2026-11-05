@@ -1167,9 +1167,36 @@
                     console.warn('Instructor signature image could not be loaded. Check the image URL and public access permissions.');
                     alert('Gambar tanda tangan Instructor/Examiner gagal dimuat. Periksa Signature Code dan izin akses gambar pada menu Instructor. PDF tetap dapat dicetak.');
                 }
+                // Judul dokumen digunakan browser sebagai saran nama file Save as PDF.
+                // Data diambil langsung dari record ujian sehingga edit History terbaru ikut terpakai.
+                const safeFilePart = value => String(value || '')
+                    .normalize('NFKC')
+                    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ')
+                    .replace(/\s+/g, ' ').trim()
+                    .replace(/[. ]+$/g, '') || 'Unknown';
+                const dateParts = String(a.examDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                const pdfDate = dateParts
+                    ? `${dateParts[3]}-${dateParts[2]}-${dateParts[1]}`
+                    : safeFilePart(a.examDate || 'No-Date');
+                const pdfFilename = [safeFilePart(a.userName || u.name), safeFilePart(a.examTitle), pdfDate].join(' - ');
+                const previousDocumentTitle = document.title;
+                document.title = pdfFilename;
+                // afterprint berlaku di browser desktop; fallback agar judul tab tidak menetap.
+                let restoredTitle = false;
+                const restorePrintTitle = () => {
+                    if (restoredTitle) return;
+                    restoredTitle = true;
+                    document.title = previousDocumentTitle;
+                    window.removeEventListener('afterprint', restorePrintTitle);
+                };
+                window.addEventListener('afterprint', restorePrintTitle);
                 // Satu kesempatan untuk layout akhir sebelum browser membuat PDF.
                 await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-                window.print();
+                try { window.print(); }
+                catch (error) { restorePrintTitle(); throw error; }
+                // Di sejumlah browser mobile, afterprint tidak dikirimkan.
+                // Jangan restore terlalu cepat karena Safari/iOS dapat menunda dialog cetak.
+                setTimeout(restorePrintTitle, 120000);
             });
         }
 
