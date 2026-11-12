@@ -976,6 +976,7 @@
             if (!requireHistorySuperadmin()) return;
             const a = state.assignments.find(x => String(x.id) === String(assignmentId) && x.status === 'COMPLETED');
             if (!a) return alert('History tidak ditemukan.');
+            window.historyEditActiveAssignmentId = a.id;
             const qs = getHistoryQuestions(a);
             const parsed = String(a.duration || '').match(/(?:(\d+)h)?\s*(?:(\d+)m)?/i);
             const h = parsed && parsed[1] ? Number(parsed[1]) : 0;
@@ -989,7 +990,7 @@
                 const current = a.answers ? a.answers[q.id] : '';
                 return `<div class="p-3 border border-slate-200 rounded-xl bg-slate-50">
                     <div class="text-xs font-bold text-slate-800 mb-2">Q${index + 1}. ${escapeHistoryHTML(q.text)}</div>
-                    <select data-question-id="${escapeHistoryHTML(q.id)}" class="history-edit-answer w-full p-2 bg-white border rounded-lg text-xs">
+                    <select data-question-id="${escapeHistoryHTML(q.id)}" onchange="updateHistoryTargetPreview()" class="history-edit-answer w-full p-2 bg-white border rounded-lg text-xs">
                       <option value="" ${!current ? 'selected' : ''}>— No Answer —</option>
                       ${['A','B','C','D'].filter(k => q.options && q.options[k]).map(k => `<option value="${k}" ${current===k?'selected':''}>${k}. ${escapeHistoryHTML(q.options[k])}</option>`).join('')}
                     </select><p class="text-[10px] text-green-700 mt-1">Correct answer: ${escapeHistoryHTML(q.answer)}</p></div>`;
@@ -1000,11 +1001,44 @@
                 <div><label class="text-xs font-bold block mb-1">Examiner / Instructor</label><select id="he-inst" class="w-full p-3 border rounded-xl text-sm"><option value="">— Select Instructor —</option>${instructorOptions}<option value="__custom" ${!currentInstructor ? 'selected' : ''}>Manual / historical name</option></select><input id="he-inst-custom" value="${escapeHistoryHTML(a.instructor || '')}" class="w-full p-3 border rounded-xl mt-2 text-sm" placeholder="Name (LOA) if not listed" /><p class="text-[10px] text-slate-500 mt-1">Pilih nama dari daftar untuk memakai tanda tangan terbaru, atau pilih Manual bila tidak ada.</p></div>
                 <div class="grid grid-cols-2 gap-3"><div><label class="text-xs font-bold block mb-1">Exam Date</label><input type="date" id="he-date" value="${escapeHistoryHTML(a.examDate || '')}" class="w-full p-3 border rounded-xl text-sm" /></div><div><label class="text-xs font-bold block mb-1">Exam Time</label><input type="time" id="he-time" value="${escapeHistoryHTML(a.examTime || '')}" class="w-full p-3 border rounded-xl text-sm" /></div></div>
                 <div class="grid grid-cols-2 gap-3"><div><label class="text-xs font-bold block mb-1">Duration (hours)</label><input type="number" min="0" max="100" id="he-hours" value="${h}" class="w-full p-3 border rounded-xl text-sm" /></div><div><label class="text-xs font-bold block mb-1">Duration (minutes)</label><input type="number" min="0" max="59" id="he-minutes" value="${m}" class="w-full p-3 border rounded-xl text-sm" /></div></div>
+                <div class="border-t pt-4"><h4 class="font-black text-sm mb-2">Target Score Calculator (Preview Only)</h4>
+                  <p class="text-xs text-slate-600 mb-3">Hitung jumlah jawaban benar yang dibutuhkan. Kalkulator ini tidak mengubah jawaban asli atau nilai ujian secara otomatis.</p>
+                  <div class="flex gap-2 items-end"><div class="flex-1"><label class="text-xs font-bold block mb-1">Target Score (%)</label><input id="he-target-score" type="number" min="0" max="100" step="1" value="${Number(a.score) || 0}" oninput="updateHistoryTargetPreview()" class="w-full p-3 border rounded-xl text-sm" /></div><button type="button" onclick="updateHistoryTargetPreview()" class="px-4 py-3 rounded-xl bg-slate-800 text-white text-xs font-bold">Calculate</button></div>
+                  <div id="he-target-preview" class="mt-3 p-3 rounded-xl bg-slate-50 text-xs text-slate-700" aria-live="polite">Jumlah soal: ${qs.length}</div>
+                </div>
                 <div class="border-t pt-4"><h4 class="font-black text-sm mb-2">Edit Candidate Answers (${qs.length} questions)</h4>${qs.length ? `<div class="space-y-3">${answerRows}</div>` : '<p class="text-xs text-amber-700 bg-amber-50 p-3 rounded-lg">Question bank/snapshot tidak tersedia untuk history ini. Jawaban tidak dapat diedit; score yang ada tetap dipertahankan.</p>'}</div>
+                <div class="border-t pt-4"><label class="text-xs font-bold block mb-1">Reason for Answer Correction (mandatory when changing answers)</label><textarea id="he-correction-reason" rows="2" placeholder="Contoh: Koreksi kunci jawaban soal nomor 8 berdasarkan review examiner tanggal ..." class="w-full p-3 border rounded-xl text-sm"></textarea><p class="text-[10px] text-slate-500 mt-1">Koreksi harus berdasarkan bukti, bukan untuk mengejar target nilai. Alasan tersimpan dalam revision audit log.</p></div>
                 ${Array.isArray(a.historyRevisions) && a.historyRevisions.length ? `<div class="border-t pt-3"><h4 class="text-xs font-black mb-2">Revision Audit Log</h4>${a.historyRevisions.slice().reverse().slice(0,10).map(r => `<p class="text-[10px] text-slate-500 py-1">${escapeHistoryHTML(r.at)} — ${escapeHistoryHTML(r.by)}: ${escapeHistoryHTML(r.detail)}</p>`).join('')}</div>` : ''}
             </div>`;
             document.getElementById('modal-footer').innerHTML = `<button onclick="closeModal()" class="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button id="he-save" onclick="saveSuperadminHistoryEdit(${JSON.stringify(a.id)})" class="px-6 py-3 bg-green-600 text-white rounded-xl text-xs font-black">Save Changes</button>`;
             document.getElementById('modal-container').classList.remove('hidden');
+            updateHistoryTargetPreview();
+        }
+        function updateHistoryTargetPreview() {
+            const output = document.getElementById('he-target-preview');
+            const input = document.getElementById('he-target-score');
+            if (!output || !input) return;
+            const answers = [...document.querySelectorAll('.history-edit-answer')];
+            const n = answers.length;
+            if (!n) { output.textContent = 'Question bank tidak tersedia. Kalkulasi target score tidak dapat dilakukan.'; return; }
+            const target = Number(input.value);
+            if (!Number.isFinite(target) || target < 0 || target > 100 || !Number.isInteger(target)) {
+                output.textContent = 'Masukkan target nilai bulat antara 0–100.'; return;
+            }
+            const a = state.assignments.find(x => String(x.id) === String(window.historyEditActiveAssignmentId) && x.status === 'COMPLETED');
+            const questions = a ? getHistoryQuestions(a) : [];
+            const selected = Object.fromEntries(answers.map(el => [String(el.dataset.questionId), el.value]));
+            const correct = questions.filter(q => selected[String(q.id)] === q.answer).length;
+            const currentScore = Math.round(correct * 100 / n);
+            const candidates = Array.from({length:n+1}, (_,k) => ({k,score:Math.round(k*100/n)})).filter(x => x.score === target);
+            if (!candidates.length) {
+                const closest = Array.from({length:n+1},(_,k) => ({k,score:Math.round(k*100/n)})).sort((a,b) => Math.abs(a.score-target)-Math.abs(b.score-target))[0];
+                output.textContent = `Saat ini ${correct}/${n} benar (${currentScore}%). Target ${target}% tidak dapat dicapai persis dengan ${n} soal berbobot sama. Nilai terdekat ${closest.score}% (${closest.k}/${n} benar). Tidak ada jawaban yang diubah otomatis.`;
+            } else {
+                const desired = candidates[0].k;
+                const gap = desired-correct;
+                output.textContent = `Saat ini ${correct}/${n} benar (${currentScore}%). Target ${target}% memerlukan ${desired}/${n} jawaban benar (${gap > 0 ? gap+' lebih banyak' : gap < 0 ? Math.abs(gap)+' lebih sedikit' : 'sudah sesuai'}). Perubahan hanya boleh berdasarkan koreksi yang terverifikasi.`;
+            }
         }
         async function saveSuperadminHistoryEdit(assignmentId) {
             if (!requireHistorySuperadmin()) return;
@@ -1034,7 +1068,10 @@
             if (old.examDate !== date) details.push('date');
             if (old.examTime !== time) details.push('time');
             if (old.duration !== `${hours}h ${mins}m`) details.push('duration');
-            if (JSON.stringify(old.answers) !== JSON.stringify(nextAnswers)) details.push('answers');
+            const answersChanged = JSON.stringify(old.answers) !== JSON.stringify(nextAnswers);
+            const correctionReason = (document.getElementById('he-correction-reason')?.value || '').trim();
+            if (answersChanged && correctionReason.length < 15) return alert('Untuk mengubah jawaban, isi alasan koreksi berbasis bukti (minimal 15 karakter).');
+            if (answersChanged) details.push('answers corrected: ' + correctionReason);
             if (old.score !== nextScore) details.push(`score ${old.score}% → ${nextScore}%`);
             if (!details.length) return alert('Tidak ada perubahan data.');
             if (!confirm('Simpan perubahan History ujian ini? Koreksi akan tampil pada Admin dan User.')) return;
