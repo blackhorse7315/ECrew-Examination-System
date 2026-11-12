@@ -108,7 +108,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBzcfPBaHdmTRLCSrvuT1F-qDsJWUZZQT8",
@@ -124,7 +124,7 @@
         window.app = initializeApp(firebaseConfig);
         window.db = getFirestore(window.app);
         window.auth = getAuth(window.app);
-        window.fsDoc = doc; window.fsSetDoc = setDoc; window.fsOnSnapshot = onSnapshot;
+        window.fsDoc = doc; window.fsSetDoc = setDoc; window.fsOnSnapshot = onSnapshot; window.fsRunTransaction = runTransaction;
 
         async function initFirebase() {
             try {
@@ -328,7 +328,7 @@
                         else renderSuperAdmin();
                     }
                     else if (state.isAdmin) renderTabContent(state.activeTab);
-                    else renderUserPortal();
+                    else if (!window.activeExam) renderUserPortal(); // An active local exam must never be replaced by a remote snapshot.
                 }
             }, (error) => {
                 clearTimeout(to); hideLoading();
@@ -343,6 +343,42 @@
                 users: state.users, instructors: state.instructors, assignments: state.assignments,
                 questionSets: state.questionSets, formNo: state.formNo, admin: state.admin, superAdmin: state.superAdmin
             }).catch(err => { console.error("Sync Failed:", err); if (strict) throw err; return false; });
+        }
+
+        // --- ISOLATED EXAM SESSIONS ---
+        // Progress is local to this device/user/assignment, never stored in the shared state.
+        function examSessionKey(id) {
+            return 'ecrew_exam_v2_' + String(state.currentUser?.id ?? 'unknown') + '_' + String(id);
+        }
+        function persistExamProgress() {
+            const ex = window.activeExam;
+            if (!ex || ex.finished) return;
+            try {
+                localStorage.setItem(examSessionKey(ex.assignment.id), JSON.stringify({
+                    currentIndex: ex.currentIndex, answers: ex.answers,
+                    questions: ex.questions, deadline: ex.deadline, examTitle: ex.assignment.examTitle,
+                    version: 2
+                }));
+            } catch (err) { console.warn('Cannot save device progress:', err); }
+        }
+        function clearExamProgress(id) {
+            try { localStorage.removeItem(examSessionKey(id)); } catch (err) { console.warn(err); }
+        }
+        // Update only a single assignment inside a Firestore transaction. Concurrent
+        // candidates' COMPLETED/IN PROGRESS writes are merged, not full-state overwrites.
+        async function updateOneAssignment(assignmentId, changes) {
+            if (!window.firebaseReady || !window.auth.currentUser) throw new Error('Database belum terhubung.');
+            const ref = window.fsDoc(window.db, 'artifacts', window.appId, 'public', 'data', 'ecrew_db', 'main_state');
+            return window.fsRunTransaction(window.db, async tx => {
+                const snap = await tx.get(ref);
+                if (!snap.exists()) throw new Error('Data ujian tidak ditemukan.');
+                const list = snap.data().assignments || [];
+                const idx = list.findIndex(a => String(a.id) === String(assignmentId));
+                if (idx < 0) throw new Error('Assignment tidak ditemukan.');
+                if (list[idx].status === 'COMPLETED' && changes.status === 'IN PROGRESS') return;
+                list[idx] = { ...list[idx], ...changes };
+                tx.update(ref, { assignments: list });
+            });
         }
 
         // --- PASSWORD VISIBILITY ---
@@ -408,6 +444,8 @@
         function logout() {
             if(!confirm('Logout sekarang?')) return;
             if (window.activeExam && window.activeExam.timerId) clearInterval(window.activeExam.timerId);
+            // Preserve unfinished progress in this device, but detach it from the next login.
+            persistExamProgress(); window.activeExam = null;
             state.currentUser = null; state.isAdmin = false;
             document.getElementById('auth-section').classList.remove('hidden'); document.getElementById('main-section').classList.add('hidden');
             document.getElementById('admin-tabs').classList.add('hidden'); document.getElementById('form-login').reset();
@@ -1202,6 +1240,9 @@
 
         // --- USER PORTAL ---
         function renderUserPortal() {
+            // Explicitly leaving the completed result releases the page for live updates.
+            if (window.activeExam?.finished) window.activeExam = null;
+            if (window.activeExam) return;
             let html = `<div class="mb-8 page-fade"><h2 class="text-3xl font-black text-slate-800 tracking-tight">Welcome, ${state.currentUser.name}</h2></div><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 page-fade">`;
             const myTasks = state.assignments.filter(a => a.userId === state.currentUser.id);
             if (myTasks.length === 0) { html += `<div class="col-span-full p-12 bg-white rounded-3xl text-center"><p class="text-slate-400 font-bold">No tasks assigned.</p></div>`; } 
@@ -1215,30 +1256,72 @@
         }
 
         function startRealExam(assignmentId) {
-            const a = state.assignments.find(x => x.id === assignmentId), set = state.questionSets.find(q => q.title === a.examTitle);
-            if (!set || !set.questions || set.questions.length === 0) return alert('Exam questions not found.');
-            const now = new Date(), eDateParts = a.examDate.split('-'); let durMins = 60;
-            if (a.duration) { const hm = a.duration.match(/(\d+)h/), mm = a.duration.match(/(\d+)m/); durMins = ((hm ? parseInt(hm[1]) : 0) * 60) + (mm ? parseInt(mm[1]) : 0) || 60; }
-            let initialTimeLeft = durMins * 60;
-
-            if (eDateParts.length === 3) {
-                const eDate = new Date(eDateParts[0], eDateParts[1] - 1, eDateParts[2]); eDate.setHours(0,0,0,0); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                if (today < eDate) return alert("Belum waktunya ujian.");
-                if (today.getTime() === eDate.getTime() && a.examTime) {
-                    const tParts = a.examTime.split(':');
-                    if (tParts.length === 2) {
-                        const currMins = now.getHours() * 60 + now.getMinutes(), examMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
-                        if (currMins < examMins) return alert("Belum waktunya ujian.");
-                        else if (currMins >= examMins + durMins) return alert("Waktu habis."); else initialTimeLeft = (examMins + durMins - currMins) * 60;
+            if (window.activeExam && !window.activeExam.finished) {
+                if (String(window.activeExam.assignment.id) === String(assignmentId)) { renderActiveExamUI(); return; }
+                alert('Selesaikan ujian yang sedang berjalan terlebih dahulu.'); return;
+            }
+            const a = state.assignments.find(x => String(x.id) === String(assignmentId));
+            const set = a && state.questionSets.find(q => q.title === a.examTitle);
+            if (!a || !set || !set.questions || !set.questions.length) return alert('Exam questions not found.');
+            if (a.status === 'COMPLETED') return alert('Ujian ini sudah selesai.');
+            const now = new Date(), parts = (a.examDate || '').split('-');
+            let durMins = 60;
+            if (a.duration) {
+                const hm = a.duration.match(/(\d+)h/), mm = a.duration.match(/(\d+)m/);
+                durMins = ((hm ? parseInt(hm[1]) : 0) * 60) + (mm ? parseInt(mm[1]) : 0) || 60;
+            }
+            let deadline = Date.now() + durMins * 60000;
+            if (parts.length === 3) {
+                const eDate = new Date(+parts[0], +parts[1] - 1, +parts[2]); eDate.setHours(0,0,0,0);
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                if (today < eDate) return alert('Belum waktunya ujian.');
+                if (+today === +eDate && a.examTime) {
+                    const tm = a.examTime.split(':');
+                    if (tm.length === 2) {
+                        const opening = new Date(eDate); opening.setHours(+tm[0], +tm[1], 0, 0);
+                        if (Date.now() < +opening) return alert('Belum waktunya ujian.');
+                        deadline = +opening + durMins * 60000;
                     }
                 }
             }
-
-            let sq = [...set.questions]; for (let i = sq.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [sq[i], sq[j]] = [sq[j], sq[i]]; }
-            window.activeExam = { assignment: a, set: set, questions: sq, currentIndex: 0, answers: {}, timeLeft: initialTimeLeft, timerId: null };
-            a.status = 'IN PROGRESS'; syncToCloud(); 
-            
-            window.activeExam.timerId = setInterval(() => { window.activeExam.timeLeft--; if (window.activeExam.timeLeft <= 0) { clearInterval(window.activeExam.timerId); window.activeExam.timeLeft = 0; alert("Waktu habis!"); renderActiveExamUI(); } else updateTimerUI(); }, 1000);
+            let saved = null;
+            try { saved = JSON.parse(localStorage.getItem(examSessionKey(a.id)) || 'null'); } catch (err) { console.warn(err); }
+            let questions;
+            if (saved && saved.version === 2 && saved.examTitle === a.examTitle &&
+                Array.isArray(saved.questions) && saved.questions.length === set.questions.length) {
+                questions = saved.questions;
+                deadline = Math.min(deadline, Number(saved.deadline) || deadline);
+            } else {
+                questions = [...set.questions];
+                for (let i = questions.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [questions[i], questions[j]] = [questions[j], questions[i]];
+                }
+                saved = null;
+            }
+            window.activeExam = {
+                assignment: a, set, questions,
+                currentIndex: saved ? Math.max(0, Math.min(questions.length - 1, Number(saved.currentIndex) || 0)) : 0,
+                answers: saved?.answers || {}, deadline,
+                timeLeft: Math.max(0, Math.ceil((deadline - Date.now()) / 1000)), timerId: null,
+                finished: false
+            };
+            persistExamProgress();
+            // No full-document sync: only this pilot's status may change.
+            if (a.status !== 'IN PROGRESS') {
+                updateOneAssignment(a.id, { status: 'IN PROGRESS' })
+                    .catch(err => console.warn('Status sync deferred:', err));
+            }
+            const ex = window.activeExam;
+            ex.timerId = setInterval(() => {
+                if (window.activeExam !== ex || ex.finished) { clearInterval(ex.timerId); return; }
+                ex.timeLeft = Math.max(0, Math.ceil((ex.deadline - Date.now()) / 1000));
+                if (!ex.timeLeft) {
+                    clearInterval(ex.timerId);
+                    renderActiveExamUI();
+                    alert('Waktu habis. Silakan kumpulkan jawaban.');
+                } else updateTimerUI();
+            }, 1000);
             renderActiveExamUI();
         }
 
@@ -1257,15 +1340,55 @@
             document.getElementById('dynamic-content').innerHTML = html; updateTimerUI(); 
         }
 
-        function selectExamOption(opt) { if (window.activeExam.timeLeft <= 0) return; window.activeExam.answers[window.activeExam.questions[window.activeExam.currentIndex].id] = opt; renderActiveExamUI(); if (window.activeExam.currentIndex < window.activeExam.questions.length - 1) setTimeout(() => navigateExam(1), 300); }
-        function navigateExam(dir) { window.activeExam.currentIndex += dir; renderActiveExamUI(); }
-        function submitExam(force = false) {
-            if (force !== true && !confirm("Kumpulkan jawaban sekarang?")) return;
-            const ex = window.activeExam; clearInterval(ex.timerId); let cc = 0; ex.questions.forEach(q => { if (ex.answers[q.id] === q.answer) cc++; });
-            const score = Math.round((cc / ex.questions.length) * 100); let grade = score === 100 ? 'PERFECT' : score >= 86 ? 'EXCELLENT' : score >= 75 ? 'PASSED' : 'FAILED';
-            ex.assignment.status = 'COMPLETED'; ex.assignment.score = score; ex.assignment.grade = grade; ex.assignment.answers = ex.answers;
-            ex.assignment.questionSnapshot = ex.questions.map(q => ({ id: q.id, section: q.section, text: q.text, options: { ...q.options }, answer: q.answer }));
-            syncToCloud(); renderExamResultUserView(ex, score, grade, cc);
+        function selectExamOption(opt) {
+            const ex = window.activeExam;
+            if (!ex || ex.finished || ex.timeLeft <= 0) return;
+            ex.answers[ex.questions[ex.currentIndex].id] = opt;
+            persistExamProgress(); renderActiveExamUI();
+            const current = ex.currentIndex;
+            if (current < ex.questions.length - 1) setTimeout(() => {
+                if (window.activeExam === ex && !ex.finished && ex.currentIndex === current) navigateExam(1);
+            }, 300);
+        }
+        function navigateExam(dir) {
+            const ex = window.activeExam;
+            if (!ex || ex.finished) return;
+            ex.currentIndex = Math.max(0, Math.min(ex.questions.length - 1, ex.currentIndex + dir));
+            persistExamProgress(); renderActiveExamUI();
+        }
+        async function submitExam(force = false) {
+            const ex = window.activeExam;
+            if (!ex || ex.finished || ex.submitting) return;
+            if (force !== true && !confirm('Kumpulkan jawaban sekarang?')) return;
+            ex.submitting = true;
+            clearInterval(ex.timerId);
+            let cc = 0;
+            ex.questions.forEach(q => { if (ex.answers[q.id] === q.answer) cc++; });
+            const score = Math.round(cc / ex.questions.length * 100);
+            const grade = score === 100 ? 'PERFECT' : score >= 86 ? 'EXCELLENT' : score >= 75 ? 'PASSED' : 'FAILED';
+            const changes = {
+                status: 'COMPLETED', score, grade, answers: { ...ex.answers },
+                questionSnapshot: ex.questions.map(q => ({ id: q.id, section: q.section, text: q.text,
+                    options: { ...q.options }, answer: q.answer }))
+            };
+            try {
+                await updateOneAssignment(ex.assignment.id, changes);
+                Object.assign(ex.assignment, changes);
+                ex.finished = true;
+                clearExamProgress(ex.assignment.id);
+                renderExamResultUserView(ex, score, grade, cc);
+            } catch (err) {
+                ex.submitting = false;
+                ex.timeLeft = Math.max(0, Math.ceil((ex.deadline - Date.now()) / 1000));
+                persistExamProgress();
+                renderActiveExamUI();
+                alert('Hasil belum berhasil disimpan ke database. Jawaban masih tersimpan pada perangkat ini. Periksa koneksi lalu tekan Submit kembali. ' + err.message);
+                if (ex.timeLeft > 0) ex.timerId = setInterval(() => {
+                    ex.timeLeft = Math.max(0, Math.ceil((ex.deadline - Date.now()) / 1000));
+                    if (ex.timeLeft === 0) { clearInterval(ex.timerId); renderActiveExamUI(); }
+                    else updateTimerUI();
+                }, 1000);
+            }
         }
 
         function renderExamResultUserView(ex, score, grade, cc) {
