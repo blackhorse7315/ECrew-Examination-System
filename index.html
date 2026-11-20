@@ -638,6 +638,7 @@
 
         // --- ADMIN UI ---
         function renderTabContent(tab) {
+            if (tab === 'history' && state.activeTab !== 'history') examHistoryNav = {year:null, title:null};
             state.activeTab = tab;
             ['users', 'instructor', 'questions', 'assign', 'history'].forEach(t => {
                 const el = document.getElementById('nt-' + t);
