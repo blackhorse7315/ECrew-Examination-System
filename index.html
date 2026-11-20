@@ -1225,17 +1225,89 @@
         }
 
         // --- HISTORY ---
+
+        // Local drill-down only. Never alters Firebase exam data.
+        let examHistoryNav = {year:null, title:null};
+        function examHistoryEscape(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c =>
+                ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+        function examHistoryYear(record) {
+            const match = String(record.examDate || record.assignedDate || '').match(/^(\d{4})/);
+            return match ? match[1] : 'Unknown Year';
+        }
+        function goExamHistory(year = null, title = null) {
+            examHistoryNav = {year, title};
+            renderHistoryData();
+        }
         function renderHistoryData() {
-            const completed = state.assignments.filter(a => a.status === 'COMPLETED').sort((a,b) => new Date(b.examDate) - new Date(a.examDate));
-            let html = `
-                <div class="flex justify-between items-center mb-6">
-                    <div><h2 class="text-xl font-bold">Exam History</h2></div>
-                    <button onclick="openImportHistoryModal()" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase shadow-lg shadow-indigo-100 tracking-widest hover:bg-indigo-700 transition-all">Import History</button>
-                </div>
-                <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100"><div class="overflow-x-auto"><table class="w-full text-left border-collapse min-w-[800px]"><thead class="bg-slate-50 border-b"><tr><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Trainee / Candidate</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Exam Title</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Date</th><th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Score</th><th class="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase">Result</th></tr></thead><tbody class="divide-y divide-slate-50">`;
-            if(completed.length === 0) { html += `<tr><td colspan="5" class="px-6 py-12 text-center text-sm font-medium text-slate-400">No history found.</td></tr>`; }
-            else { completed.forEach(a => { const isPass = a.score >= 75; html += `<tr class="hover:bg-slate-50/50"><td class="px-6 py-4 font-bold text-slate-800 text-sm">${a.userName}</td><td class="px-6 py-4 text-xs font-bold text-slate-600 truncate max-w-[200px]" title="${a.examTitle}">${a.examTitle}</td><td class="px-6 py-4 text-xs text-slate-500">${formatDisplayDate(a.examDate)}</td><td class="px-6 py-4 font-black ${isPass?'text-green-600':'text-red-500'}">${a.score}%</td><td class="px-6 py-4 text-right"><button onclick="viewExamDetails(${a.id})" class="px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase ${isPass?'bg-green-50 text-green-600':'bg-red-50 text-red-600'} hover:opacity-80 shadow-sm">View Doc</button></td></tr>`; }); }
-            document.getElementById('dynamic-content').innerHTML = html + `</tbody></table></div></div>`;
+            const completed = state.assignments.filter(a => a.status === 'COMPLETED')
+                .sort((a,b) => String(b.examDate || '').localeCompare(String(a.examDate || '')));
+            const years = new Map();
+            for (const item of completed) {
+                const year = examHistoryYear(item);
+                const title = String(item.examTitle || 'Untitled Exam');
+                if (!years.has(year)) years.set(year, new Map());
+                if (!years.get(year).has(title)) years.get(year).set(title, []);
+                years.get(year).get(title).push(item);
+            }
+            if (examHistoryNav.year && !years.has(examHistoryNav.year)) examHistoryNav = {year:null,title:null};
+            if (examHistoryNav.title && !years.get(examHistoryNav.year)?.has(examHistoryNav.title)) examHistoryNav.title = null;
+            let html = '<div class="flex flex-wrap justify-between items-center gap-3 mb-6"><div><h2 class="text-xl font-bold text-slate-800">Exam History</h2><p class="text-xs text-slate-500 mt-1">Year &rsaquo; Exam Title &rsaquo; Candidate History</p></div>'
+                + '<button onclick="openImportHistoryModal()" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase shadow-lg">Import History</button></div>';
+            if (examHistoryNav.year) {
+                html += '<div class="flex flex-wrap gap-2 items-center mb-5 text-xs font-bold">'
+                    + '<button type="button" id="history-all-years" class="px-3 py-2 border rounded-lg bg-white text-blue-600">All Years</button><span>&rsaquo;</span>'
+                    + '<button type="button" id="history-back-year" class="px-3 py-2 border rounded-lg bg-white text-blue-600">' + examHistoryEscape(examHistoryNav.year) + '</button>';
+                if (examHistoryNav.title) html += '<span>&rsaquo;</span><span class="text-slate-700">' + examHistoryEscape(examHistoryNav.title) + '</span>';
+                html += '</div>';
+            }
+            if (!completed.length) {
+                html += '<div class="bg-white p-10 rounded-xl border text-center text-sm text-slate-400">No completed exam history found.</div>';
+            } else if (!examHistoryNav.year) {
+                html += '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
+                [...years.keys()].sort((a,b)=>b.localeCompare(a)).forEach(year => {
+                    const list = years.get(year);
+                    const count = [...list.values()].reduce((sum,records)=>sum+records.length,0);
+                    html += '<button type="button" data-year="' + examHistoryEscape(year) + '" class="history-select-year text-left bg-white p-6 border border-slate-200 rounded-2xl shadow-sm hover:border-blue-400">'
+                        + '<div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Examination Year</div>'
+                        + '<div class="flex items-center justify-between"><span class="text-3xl font-black text-slate-800">' + examHistoryEscape(year) + '</span><span class="text-xl text-blue-600">&rsaquo;</span></div>'
+                        + '<div class="text-xs text-slate-500 mt-3">' + list.size + ' exam titles &bull; ' + count + ' records</div></button>';
+                });
+                html += '</div>';
+            } else if (!examHistoryNav.title) {
+                html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+                [...years.get(examHistoryNav.year).entries()].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([title,records]) => {
+                    html += '<button type="button" data-title="' + examHistoryEscape(title) + '" class="history-select-title text-left bg-white p-5 border border-slate-200 rounded-2xl shadow-sm hover:border-blue-400">'
+                        + '<div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Exam Title</div>'
+                        + '<div class="text-sm font-bold text-slate-800">' + examHistoryEscape(title) + '</div>'
+                        + '<div class="text-xs font-bold text-blue-600 mt-3">' + records.length + ' results &rsaquo;</div></button>';
+                });
+                html += '</div>';
+            } else {
+                const records = years.get(examHistoryNav.year).get(examHistoryNav.title);
+                html += '<div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100"><div class="overflow-x-auto"><table class="w-full text-left border-collapse min-w-[630px]">'
+                    + '<thead class="bg-slate-50 border-b"><tr><th class="px-5 py-4 text-[10px] font-black text-slate-400 uppercase">Candidate</th><th class="px-5 py-4 text-[10px] font-black text-slate-400 uppercase">Date</th><th class="px-5 py-4 text-[10px] font-black text-slate-400 uppercase">Score</th><th class="px-5 py-4 text-right text-[10px] font-black text-slate-400 uppercase">Result</th></tr></thead><tbody class="divide-y">';
+                records.forEach(a => {
+                    const passed = Number(a.score) >= 75;
+                    const score = a.score == null ? '-' : a.score + '%';
+                    html += '<tr class="hover:bg-slate-50"><td class="px-5 py-4 text-sm font-bold text-slate-800">' + examHistoryEscape(a.userName) + '</td>'
+                        + '<td class="px-5 py-4 text-xs text-slate-500">' + examHistoryEscape(formatDisplayDate(a.examDate)) + '</td>'
+                        + '<td class="px-5 py-4 font-black ' + (passed?'text-green-600':'text-red-500') + '">' + examHistoryEscape(score) + '</td>'
+                        + '<td class="px-5 py-4 text-right"><button type="button" data-record="' + examHistoryEscape(a.id) + '" class="history-view-record px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-blue-50 text-blue-700">View Doc</button></td></tr>';
+                });
+                html += '</tbody></table></div></div>';
+            }
+            const root = document.getElementById('dynamic-content');
+            root.innerHTML = html;
+            root.querySelector('#history-all-years')?.addEventListener('click', () => goExamHistory());
+            root.querySelector('#history-back-year')?.addEventListener('click', () => goExamHistory(examHistoryNav.year));
+            root.querySelectorAll('.history-select-year').forEach(el => el.addEventListener('click', () => goExamHistory(el.dataset.year)));
+            root.querySelectorAll('.history-select-title').forEach(el => el.addEventListener('click', () => goExamHistory(examHistoryNav.year, el.dataset.title)));
+            root.querySelectorAll('.history-view-record').forEach(el => el.addEventListener('click', () => {
+                const record = state.assignments.find(a => String(a.id) === el.dataset.record);
+                if (record) viewExamDetails(record.id);
+            }));
         }
 
         function viewExamDetails(assignmentId) {
