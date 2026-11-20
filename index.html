@@ -454,6 +454,16 @@
                     if (Object.keys(patch).length) tx.update(ref, patch);
                     committed = { ...remote, ...patch };
                 });
+                // Rebase any local changes made while the transaction was in flight
+                // against its committed server state, without rolling back newer edits.
+                for (const key of CLOUD_ARRAYS) {
+                    state[key] = deepSame(state[key], wanted[key])
+                        ? toSafeCopy(committed[key])
+                        : mergeChangedArray(key, wanted[key], state[key], committed[key]);
+                }
+                for (const key of CLOUD_SCALARS) {
+                    if (deepSame(state[key], wanted[key])) state[key] = toSafeCopy(committed[key]);
+                }
                 cloudBase = toSafeCopy(committed);
                 return true;
             };
