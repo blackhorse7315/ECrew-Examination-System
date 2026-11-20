@@ -277,9 +277,8 @@
         setTimeout(() => {
             const loader = document.getElementById('loading-screen');
             if(!loader.classList.contains('hidden')) {
-                loader.classList.add('hidden');
-                document.getElementById('app').classList.remove('opacity-0');
-                console.warn("Failsafe: Loading screen removed due to timeout.");
+                loader.innerHTML = '<div class="p-6 text-center text-red-700 font-bold">Koneksi database belum terverifikasi. Jangan mengisi data. Periksa internet dan refresh halaman.</div>';
+                console.error('Database connection timeout: writes are disabled.');
             }
         }, 10000);
 
@@ -312,14 +311,35 @@
 
             unsubscribeSnapshot = window.fsOnSnapshot(docRef, (docSnap) => {
                 clearTimeout(to);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    state.users = data.users || []; state.instructors = data.instructors || [];
-                    state.assignments = data.assignments || []; state.questionSets = data.questionSets || [];
+                if (!docSnap.exists()) {
+                    cloudLoaded = false;
+                    console.error('CRITICAL: Firestore main_state missing. Automatic creation is disabled.');
+                    hideLoading();
+                    alert('Database E-CREW tidak ditemukan. Penyimpanan dinonaktifkan untuk mencegah hilangnya data. Hubungi administrator.');
+                    return;
+                }
+                if (docSnap.metadata.fromCache && !cloudLoaded) {
+                    console.warn('Waiting for confirmed server data; cached data is read-only.');
+                    return;
+                }
+                const data = docSnap.data();
+                const valid = ['users', 'instructors', 'assignments', 'questionSets']
+                    .every(k => Array.isArray(data[k]));
+                if (!valid) {
+                    cloudLoaded = false;
+                    hideLoading();
+                    alert('Struktur database tidak lengkap. Penyimpanan diblokir. Hubungi administrator.');
+                    return;
+                }
+                if (!pendingCloudWrites) {
+                    cloudBase = structuredClone(data);
+                    cloudLoaded = true;
+                    state.users = data.users; state.instructors = data.instructors;
+                    state.assignments = data.assignments; state.questionSets = data.questionSets;
                     if (data.formNo !== undefined) state.formNo = data.formNo;
                     if (data.admin && data.admin.u !== undefined) state.admin = data.admin;
                     if (data.superAdmin && data.superAdmin.code) state.superAdmin.code = data.superAdmin.code;
-                } else { syncToCloud(); }
+                }
                 
                 hideLoading();
                 if (state.currentUser) {
@@ -336,13 +356,110 @@
             });
         };
 
+        // SAFE FIRESTORE WRITES: never create a missing document, never replace a
+        // whole Firestore document from stale device state.
+        let cloudLoaded = false;
+        let cloudBase = null;
+        let pendingCloudWrites = 0;
+        let syncQueue = Promise.resolve();
+        const CLOUD_ARRAYS = ['users', 'instructors', 'assignments', 'questionSets'];
+        const CLOUD_SCALARS = ['formNo', 'admin', 'superAdmin'];
+        const deepSame = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+        function toSafeCopy(x) { return structuredClone(x); }
+
+        function mergeChangedArray(name, before, wanted, remote) {
+            if (!Array.isArray(before) || !Array.isArray(wanted) || !Array.isArray(remote)) {
+                throw new Error('Invalid collection: ' + name);
+            }
+            // Never allow a stale or uninitialized screen to empty a live collection.
+            if (before.length && !wanted.length) throw new Error('Bulk deletion blocked: ' + name);
+            const ids = arr => {
+                const set = new Set();
+                arr.forEach(item => {
+                    if (item == null || item.id == null) throw new Error('Missing record id in ' + name);
+                    const id = String(item.id);
+                    if (set.has(id)) throw new Error('Duplicate record id in ' + name);
+                    set.add(id);
+                });
+            };
+            ids(before); ids(wanted); ids(remote);
+            const oldBy = new Map(before.map(x => [String(x.id), x]));
+            const newBy = new Map(wanted.map(x => [String(x.id), x]));
+            const out = remote.map(x => toSafeCopy(x));
+            for (const old of before) {
+                const key = String(old.id), next = newBy.get(key);
+                const ix = out.findIndex(x => String(x.id) === key);
+                if (!next) {
+                    if (ix < 0) continue;
+                    if (!deepSame(out[ix], old)) throw new Error('Concurrent edit; deletion refused: ' + name + '/' + key);
+                    out.splice(ix, 1);
+                } else if (!deepSame(old, next)) {
+                    if (ix < 0) throw new Error('Record disappeared: ' + name + '/' + key);
+                    const merged = { ...out[ix] };
+                    const keys = new Set([...Object.keys(old), ...Object.keys(next)]);
+                    for (const prop of keys) {
+                        if (deepSame(old[prop], next[prop])) continue;
+                        if (!deepSame(out[ix][prop], old[prop]) && !deepSame(out[ix][prop], next[prop]))
+                            throw new Error('Concurrent change detected: ' + name + '/' + key + '/' + prop);
+                        if (Object.prototype.hasOwnProperty.call(next, prop)) merged[prop] = toSafeCopy(next[prop]);
+                        else delete merged[prop];
+                    }
+                    out[ix] = merged;
+                }
+            }
+            for (const item of wanted) {
+                const key = String(item.id);
+                if (oldBy.has(key)) continue;
+                if (out.some(x => String(x.id) === key)) throw new Error('Duplicate new record: ' + name + '/' + key);
+                out.push(toSafeCopy(item));
+            }
+            if (remote.length && !out.length) throw new Error('Empty collection write blocked: ' + name);
+            return out;
+        }
+
         function syncToCloud(strict = false) {
-            if (!window.firebaseReady || !window.auth.currentUser) { const e = new Error('Firebase belum terhubung.'); return strict ? Promise.reject(e) : Promise.resolve(false); }
-            const docRef = window.fsDoc(window.db, 'artifacts', window.appId, 'public', 'data', 'ecrew_db', 'main_state');
-            return window.fsSetDoc(docRef, {
-                users: state.users, instructors: state.instructors, assignments: state.assignments,
-                questionSets: state.questionSets, formNo: state.formNo, admin: state.admin, superAdmin: state.superAdmin
-            }).catch(err => { console.error("Sync Failed:", err); if (strict) throw err; return false; });
+            const fail = err => {
+                console.error('E-CREW SAVE BLOCKED:', err);
+                alert('Perubahan BELUM tersimpan ke Firebase: ' + (err.message || err));
+                if (strict) throw err;
+                return false;
+            };
+            if (!cloudLoaded || !cloudBase || !window.firebaseReady || !window.auth?.currentUser) {
+                const e = new Error('Database belum dikonfirmasi dari server. Reload saat koneksi stabil.');
+                return Promise.resolve().then(() => fail(e));
+            }
+            const before = toSafeCopy(cloudBase);
+            const wanted = Object.fromEntries([...CLOUD_ARRAYS, ...CLOUD_SCALARS]
+                .map(k => [k, toSafeCopy(state[k])]));
+            pendingCloudWrites++;
+            const operation = async () => {
+                const ref = window.fsDoc(window.db, 'artifacts', window.appId, 'public', 'data', 'ecrew_db', 'main_state');
+                let committed = null;
+                await window.fsRunTransaction(window.db, async tx => {
+                    const snap = await tx.get(ref);
+                    if (!snap.exists()) throw new Error('Dokumen main_state tidak ditemukan. Tidak membuat database baru.');
+                    const remote = snap.data();
+                    const patch = {};
+                    for (const key of CLOUD_ARRAYS) {
+                        if (!deepSame(before[key], wanted[key])) {
+                            patch[key] = mergeChangedArray(key, before[key], wanted[key], remote[key]);
+                        }
+                    }
+                    for (const key of CLOUD_SCALARS) {
+                        if (deepSame(before[key], wanted[key])) continue;
+                        if (!deepSame(remote[key], before[key]) && !deepSame(remote[key], wanted[key]))
+                            throw new Error('Concurrent configuration change: ' + key);
+                        patch[key] = toSafeCopy(wanted[key]);
+                    }
+                    if (Object.keys(patch).length) tx.update(ref, patch);
+                    committed = { ...remote, ...patch };
+                });
+                cloudBase = toSafeCopy(committed);
+                return true;
+            };
+            const result = syncQueue.then(operation);
+            syncQueue = result.catch(() => {});
+            return result.catch(fail).finally(() => { pendingCloudWrites--; });
         }
 
         // --- ISOLATED EXAM SESSIONS ---
@@ -403,6 +520,7 @@
 
         function handleLogin(e) {
             e.preventDefault();
+            if (!cloudLoaded) return alert('Database belum siap. Login ditunda untuk melindungi data.');
             const id = document.getElementById('login-id').value, pass = document.getElementById('login-pass').value;
 
             if (id === 'superadmin' && pass === state.superAdmin.code) { state.currentUser = { name: 'Super Administrator', role: 'superadmin' }; state.isAdmin = true; loginSuccess(); return; }
@@ -418,6 +536,7 @@
 
         function handleRegister(e) {
             e.preventDefault();
+            if (!cloudLoaded) return alert('Database belum siap. Registrasi dinonaktifkan.');
             const user = document.getElementById('reg-id').value;
             if (state.users.some(x => x.username === user) || state.instructors.some(x => x.username === user) || user === state.admin.u || user === 'superadmin') return alert('Email / Username sudah digunakan!');
             const newUser = { id: Date.now(), name: document.getElementById('reg-name').value, username: user, password: document.getElementById('reg-pass').value, rank: document.getElementById('reg-rank').value, rating: document.getElementById('reg-rating').value, license: document.getElementById('reg-license').value, signUrl: '' };
